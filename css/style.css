@@ -272,21 +272,20 @@ main { display: grid; gap: 32px; padding: 8px 16px 48px; }
 }
 @media (max-width: 680px) {
   main { padding-left: 12px; padding-right: 12px; }
-  .panel { padding: 18px 14px; border-radius: 22px; column-gap: 10px; }
-  .renko-panel {
-    grid-template-columns: 44% minmax(0, 1fr);
-    grid-template-areas: "head head" "portrait bubble" "body body";
-    grid-template-rows: auto auto auto;
+  /* スマホはゲームの会話画面ふうに：キャラを大きく上に、吹き出しを横幅いっぱいで下に */
+  .panel { padding: 18px 14px; border-radius: 22px; }
+  .renko-panel, .mary-panel {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "head" "portrait" "bubble" "body";
+    grid-template-rows: auto;
   }
-  .mary-panel {
-    grid-template-columns: minmax(0, 1fr) 44%;
-    grid-template-areas: "head head" "bubble portrait" "body body";
-    grid-template-rows: auto auto auto;
-  }
-  .portrait { position: relative; top: 0; align-self: end; }
-  .bubble { align-self: center; padding: 12px 14px; font-size: 0.9rem; line-height: 1.75; min-height: 0; }
-  .bubble .lead { font-size: 1.02rem; }
-  .bubble::after { top: 40%; }
+  .portrait { position: relative; top: 0; width: 64%; justify-self: start; }
+  .mary-panel .portrait { justify-self: end; }
+  .bubble { margin-top: -44px; z-index: 1; padding: 14px 16px; font-size: 0.93rem; line-height: 1.8; min-height: 0; }
+  .bubble .lead { font-size: 1.05rem; }
+  .bubble::after { top: -8px; }
+  .renko-panel .bubble::after { left: 30%; }
+  .mary-panel .bubble::after { right: 30%; }
   .stage-head { font-size: 1.25rem; }
   .index-card { gap: 14px; padding: 14px; }
   .index-ring { width: 96px; height: 96px; }

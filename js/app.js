@@ -498,22 +498,26 @@
       expr = 'cloudy';
     }
 
-    // ひとこと添えるのは1つだけ（月明かり → 寒さ の順）
+    // 判定のあとに、月明かり・気象庁の予報・寒さの話を続ける（話題ごとに段落を分ける）
+    const parts = [lead, { expr, text: lines.join('') }];
     const m = sky.moon;
-    let extra = '';
     if (sum.lv >= 3 && !sum.rain) {
       const setInNight = m.set && m.set > sky.dusk && m.set < sky.dawn;
       const riseInNight = m.rise && m.rise > sky.dusk && m.rise < sky.dawn;
-      if (m.illum >= 0.75 && m.upFrac > 0.4) extra = `ただ、${m.name}が明るいから、暗い星は見えにくいかも。`;
-      else if (m.upFrac < 0.15 || m.illum < 0.15) extra = '月明かりもないから、暗い星までよく見えるはずよ。';
-      else if (setInNight && m.illum > 0.3) extra = `月が${fmtHM(m.set, sum.date)}に沈んだあとが勝負ね。`;
-      else if (riseInNight && m.illum > 0.3) extra = `${fmtHM(m.rise, sum.date)}に月が昇るまでが勝負ね。`;
+      let ml = '';
+      if (m.illum >= 0.75 && m.upFrac > 0.4) ml = `ただ、${m.name}が明るいから、暗い星は見えにくいかも。`;
+      else if (m.upFrac < 0.15 || m.illum < 0.15) ml = '月明かりの邪魔もないから、暗い星までよく見えるはずよ。';
+      else if (setInNight && m.illum > 0.3) ml = `月が${fmtHM(m.set, sum.date)}に沈んだあとが勝負ね。`;
+      else if (riseInNight && m.illum > 0.3) ml = `${fmtHM(m.rise, sum.date)}に月が昇ってくるまでが勝負ね。`;
+      if (ml) parts.push({ text: ml });
     }
-    if (!extra && sum.tmin != null && !sum.rain && sum.lv >= 2 && sum.tmin <= 5) {
-      extra = `${sum.tmin}℃くらいまで冷えるから、厚着してきてね。`;
+    const jmaText = state.jma?.text?.[sum.date];
+    if (jmaText) parts.push({ text: `気象庁の予報だと「${jmaText}」だって。` });
+    if (sum.tmin != null && !sum.rain && sum.lv >= 2) {
+      if (sum.tmin <= 3) parts.push({ text: `夜は${sum.tmin}℃くらいまで冷えるから、しっかり着込んできてね。` });
+      else if (sum.tmin <= 10) parts.push({ text: `${sum.tmin}℃くらいまで下がるから、上着を忘れずに。` });
     }
-    if (extra) lines.push(extra);
-    return { expr, parts: [lead, { expr, text: lines.join('') }] };
+    return { expr, parts };
   }
 
   function maryScript(sum, sky, offset) {
@@ -521,46 +525,59 @@
     const parts = [{ text: `蓮子、${when}はこんな星が見れるはずよ！`, cls: 'lead', speed: 45, pause: 400, expr: 'happy' }];
     const magWord = (mag) => (mag <= -3 ? 'ひときわ明るく' : mag <= -1.5 ? 'とても明るく' : mag <= 0.5 ? '明るく' : '');
 
-    // 話すのは3つまで：①いちばんの惑星 ②月 ③流星群・星座・曇りの日のひとことのどれか
+    // 惑星 → 月 → 星座 → 流星群 → （曇りなら）ひとこと、の順にたっぷり話す
     const vis = sky.planets.filter((p) => p.visible).sort((a, b) => a.mag - b.mag);
     const evening = vis.filter((p) => p.period === '宵の空' || p.period === '一晩中');
     const late = vis.filter((p) => p.period === '夜半' || p.period === '夜半〜明け方');
     const morning = vis.filter((p) => p.period === '明け方の空');
     if (evening.length) {
       const p = evening[0];
-      parts.push({ text: `${p.period === '宵の空' ? '日が暮れたら' : '一晩中、'}${p.bestDir}の空に${p.name}が${magWord(p.mag)}光っているわ。` });
-    } else if (late.length) {
-      const p = late[0];
-      parts.push({ text: `${fmtHM(p.start, sky.date)}ごろになると、${p.name}が昇ってくるわ。` });
-    } else if (morning.length) {
-      const p = morning[0];
-      parts.push({ text: `惑星なら明け方ね。${p.bestDir}の空に${p.name}が${magWord(p.mag)}光っているわ。` });
+      const mw = magWord(p.mag);
+      let s = p.period === '宵の空'
+        ? `日が暮れたら${p.bestDir}の空を見て。${p.constellation}のあたりで、${p.name}が${mw}輝いているわ。`
+        : `${p.name}が一晩中見えるわ。${fmtHM(p.best.t, sky.date)}ごろ、${p.bestDir}の空で${mw}輝いているはずよ（${p.constellation}）。`;
+      const others = evening.slice(1).map((x) => x.name);
+      if (others.length) s += `${others.join('、')}も見えるわね。`;
+      parts.push({ text: s });
+    }
+    if (late.length) {
+      const names = late.map((p) => p.name).join('と');
+      parts.push({ text: evening.length
+        ? `夜が更けると、${names}も昇ってくるわ。${fmtHM(late[0].start, sky.date)}ごろからね。`
+        : `${fmtHM(late[0].start, sky.date)}ごろになると、${names}が昇ってくるわ（${late[0].constellation}）。` });
+    }
+    if (morning.length) {
+      const names = morning.map((p) => (p.mag <= -3 ? `ひときわ明るい${p.name}` : p.name)).join('、');
+      parts.push({ text: evening.length || late.length
+        ? `早起きするなら、明け方の空に${names}も並ぶわよ。`
+        : `惑星を見るなら明け方ね。${morning[0].bestDir}の空に${names}が見えるわ。` });
     }
 
     const m = sky.moon;
     const setInNight = m.set && m.set > sky.dusk && m.set < sky.dawn;
     const riseInNight = m.rise && m.rise > sky.dusk && m.rise < sky.dawn;
-    let ms = `月は${m.name}。`;
-    if (m.upFrac < 0.05) ms += '夜は沈んでいるから、星にはうってつけね。';
-    else if (m.upFrac > 0.9) ms += '一晩中、空にいるわ。';
+    let ms = `月は${m.name}（月齢${m.age.toFixed(1)}）。`;
+    if (m.upFrac < 0.05) ms += '夜のあいだは沈んでいるから、星を見るには絶好ね。';
+    else if (m.upFrac > 0.9) ms += '一晩中、空にいるわね。';
     else if (m.upAtDusk && setInNight) ms += `${fmtHM(m.set, sky.date)}に沈むわ。`;
     else if (riseInNight) ms += `${fmtHM(m.rise, sky.date)}に昇ってくるわ。`;
     parts.push({ text: ms });
 
+    const c = constellationsAt(atJst(sky.date, 21 * 60), state.obs).find((x) => x.size >= 3 && x.name !== 'こぐま座');
+    if (c) parts.push({ text: `21時ごろは${c.name}が${c.alt > 72 ? '頭の真上あたり' : `${c.dir}の空`}に見えるわ。${c.tip}` });
+
     let expr = 'happy';
     const shower = upcomingShowers(sky.date, 10)[0];
-    const badSky = state.weatherStatus === 'ok' && sum.hasData && (sum.rain || sum.lv <= 2);
     if (shower && (shower.diff === 0 || shower.diff === 1)) {
-      parts.push({ expr: 'excited', text: `しかも${shower.name}の極大の夜よ！` });
+      parts.push({ expr: 'excited', text: `しかも${shower.name}の極大の夜よ！ 流れ星、いくつ数えられるかしら。` });
       expr = 'excited';
-    } else if (badSky) {
-      parts.push({ expr: 'gentle', text: '……雲に隠れても、星はちゃんとそこにあるのよ。私には、ちょっとだけ見えちゃうけど。' });
-      expr = 'gentle';
     } else if (shower && shower.diff > 1) {
-      parts.push({ text: `${dateInfo(shower.date).md}は${shower.name}の極大よ。覚えておいてね。` });
-    } else {
-      const c = constellationsAt(atJst(sky.date, 21 * 60), state.obs).find((x) => x.size >= 3 && x.name !== 'こぐま座');
-      if (c) parts.push({ text: `21時ごろは${c.name}が${c.alt > 72 ? '頭の真上' : `${c.dir}の空`}に見えるわ。` });
+      parts.push({ text: `それと、${dateInfo(shower.date).md}は${shower.name}の極大よ。覚えておいてね。` });
+    }
+
+    if (state.weatherStatus === 'ok' && sum.hasData && (sum.rain || sum.lv <= 2)) {
+      parts.push({ expr: 'gentle', text: '……雲で隠れちゃっても、星はちゃんとそこにあるのよ。私の目には、ちょっとだけ見えちゃうけど。' });
+      expr = 'gentle';
     }
     return { expr, parts };
   }
