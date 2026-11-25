@@ -71,9 +71,10 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .tabs { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
 .tab {
-  flex: 0 0 auto; font: inherit; color: var(--text-dim); background: var(--card); border: 1px solid var(--line);
-  border-radius: 999px; padding: 6px 20px; cursor: pointer; white-space: nowrap; font-size: 0.95rem;
+  flex: 0 0 auto; font: inherit; color: #d3d8f5; background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(190, 205, 255, 0.3);
+  border-radius: 999px; padding: 7px 22px; cursor: pointer; white-space: nowrap; font-size: 0.98rem; font-weight: 500;
 }
+.tab:hover { color: #fff; background: rgba(255, 255, 255, 0.12); }
 .tab[aria-selected="true"] { color: var(--bg-0); background: var(--text); border-color: var(--text); font-weight: 700; }
 
 /* ---------- panels: 立ち絵 + 吹き出し + 中身 ---------- */
@@ -134,15 +135,20 @@ main { display: grid; gap: 32px; padding: 8px 16px 48px; }
 @keyframes blink { 50% { opacity: 0; } }
 
 /* ---------- sub tabs ---------- */
-.subtabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--line); }
-.subtabs::-webkit-scrollbar { display: none; }
-.subtabs button {
-  flex: 0 0 auto; font: inherit; font-size: 0.92rem; color: var(--text-dim); background: none; border: 0;
-  padding: 8px 14px 10px; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1px; white-space: nowrap;
+/* ボタンが並んだ「切り替えスイッチ」型。選択中はキャラクターの色で塗る */
+.subtabs {
+  display: flex; flex-wrap: wrap; gap: 4px; width: fit-content; max-width: 100%;
+  padding: 4px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(190, 205, 255, 0.22); border-radius: 14px;
 }
-.subtabs button:hover { color: var(--text); }
-.renko-panel .subtabs button[aria-selected="true"] { color: var(--text); font-weight: 700; border-bottom-color: var(--renko); }
-.mary-panel .subtabs button[aria-selected="true"] { color: var(--text); font-weight: 700; border-bottom-color: var(--mary); }
+.subtabs button {
+  flex: 0 0 auto; font: inherit; font-size: 0.95rem; font-weight: 500; color: #d3d8f5; background: transparent;
+  border: 0; border-radius: 10px; padding: 7px 16px; cursor: pointer; white-space: nowrap;
+  transition: background-color 0.15s, color 0.15s;
+}
+.subtabs button:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
+.subtabs button[aria-selected="true"] { color: #1a1026; font-weight: 700; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3); }
+.renko-panel .subtabs button[aria-selected="true"] { background: var(--renko); }
+.mary-panel .subtabs button[aria-selected="true"] { background: var(--mary); }
 .view { min-width: 0; }
 .view-note { margin: 10px 0 0; font-size: 0.8rem; color: var(--text-faint); }
 .view-note-top { margin: 0 0 10px; }
@@ -287,6 +293,9 @@ main { display: grid; gap: 32px; padding: 8px 16px 48px; }
   .index-num { font-size: 2rem; }
   .index-label { font-size: 1.15rem; }
   .facts-row { gap: 0 14px; }
+  .subtabs { width: 100%; flex-wrap: nowrap; }
+  .subtabs button { flex: 1 1 auto; font-size: 0.88rem; padding: 7px 6px; }
+  .wide-only { display: none; }
   .weekly { grid-template-columns: repeat(7, 76px); }
   .meteor { grid-template-columns: auto 1fr; }
   .meteor .m-moon { grid-column: 2; text-align: left; }
