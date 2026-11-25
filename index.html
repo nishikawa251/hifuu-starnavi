@@ -27,11 +27,11 @@
         <button type="button" id="geo-btn" class="ghost-btn" title="現在地を使う">現在地</button>
       </div>
     </div>
-    <div class="wrap star-clock" id="star-clock" aria-live="off">
+    <p class="wrap star-clock">
       <span class="clock-label">蓮子の星時計</span>
       <span class="clock-time" id="clock-time">--:--:--</span>
-      <span class="clock-sub" id="clock-sidereal">地方恒星時 --h--m</span>
-    </div>
+      <span class="clock-sub" id="clock-sidereal"></span>
+    </p>
   </header>
 
   <nav class="night-tabs wrap" aria-label="観察する夜">
@@ -41,101 +41,94 @@
   <main class="wrap">
     <!-- ============ 蓮子の星空予報 ============ -->
     <section class="panel renko-panel" id="renko">
-      <div class="panel-head">
-        <h2><span class="who">蓮子</span>の星空予報</h2>
-        <p class="panel-note">雲の量から「星空指数」を出しているわ</p>
-      </div>
+      <figure class="portrait" data-char="renko" aria-label="宇佐見蓮子"></figure>
+      <h2 class="stage-head"><span class="who">蓮子</span>の星空予報</h2>
+      <div class="bubble" id="renko-bubble" aria-live="polite"></div>
 
-      <div class="talk">
-        <figure class="portrait" data-char="renko" aria-label="宇佐見蓮子"></figure>
-        <div class="bubble" id="renko-bubble" aria-live="polite"></div>
-      </div>
-
-      <div class="forecast-grid">
+      <div class="stage-body">
         <div class="index-card" id="index-card">
-          <p class="index-date" id="index-date"></p>
-          <div class="index-main">
-            <div class="index-ring" id="index-ring">
-              <span class="index-num" id="index-num">--</span>
-              <span class="index-unit">星空指数</span>
-            </div>
-            <div class="index-detail">
-              <p class="index-label" id="index-label">読み込み中…</p>
-              <p class="index-stars" id="index-stars" aria-hidden="true"></p>
-              <dl class="facts" id="index-facts"></dl>
-            </div>
+          <div class="index-ring" id="index-ring">
+            <span class="index-num" id="index-num">--</span>
+            <span class="index-unit">星空指数</span>
           </div>
-          <p class="jma-line" id="jma-line"></p>
+          <div class="index-detail">
+            <p class="index-date" id="index-date"></p>
+            <p class="index-label" id="index-label">読み込み中…</p>
+            <p class="index-stars" id="index-stars" aria-hidden="true"></p>
+            <dl class="facts facts-row" id="index-facts"></dl>
+          </div>
         </div>
 
-        <div class="hourly-card">
-          <h3>時間ごとの星空指数</h3>
+        <div class="subtabs" role="tablist" data-group="renko">
+          <button type="button" role="tab" data-view="hourly" aria-selected="true">時間ごと</button>
+          <button type="button" role="tab" data-view="weekly" aria-selected="false">1週間</button>
+          <button type="button" role="tab" data-view="nation" aria-selected="false">全国</button>
+        </div>
+
+        <div class="view" data-group="renko" data-view="hourly">
           <div class="hourly" id="hourly"></div>
           <p class="legend">
             <span class="lg lg-5">満天</span><span class="lg lg-4">よく見える</span><span class="lg lg-3">雲の合間に</span><span class="lg lg-2">見えにくい</span><span class="lg lg-1">見えない</span>
           </p>
+          <p class="jma-line" id="jma-line"></p>
         </div>
-      </div>
-
-      <div class="sub-block">
-        <h3>1週間の星空指数</h3>
-        <div class="weekly" id="weekly"></div>
-      </div>
-
-      <div class="sub-block">
-        <h3>全国の星空指数 <small id="nation-when"></small></h3>
-        <div class="nation" id="nation"></div>
+        <div class="view" data-group="renko" data-view="weekly" hidden>
+          <div class="weekly" id="weekly"></div>
+          <p class="view-note">日付を押すと、その夜の予報と星空に切り替わります。</p>
+        </div>
+        <div class="view" data-group="renko" data-view="nation" hidden>
+          <div class="nation" id="nation"></div>
+          <p class="view-note"><span id="nation-when"></span>の星空指数。都市を押すと観察地を切り替えます。</p>
+        </div>
       </div>
     </section>
 
     <!-- ============ メリーの星空案内 ============ -->
     <section class="panel mary-panel" id="mary">
-      <div class="panel-head">
-        <h2><span class="who">メリー</span>の星空案内</h2>
-        <p class="panel-note">見える星を、時刻ごとに星図で</p>
-      </div>
+      <figure class="portrait" data-char="maribel" aria-label="マエリベリー・ハーン"></figure>
+      <h2 class="stage-head"><span class="who">メリー</span>の星空案内</h2>
+      <div class="bubble" id="mary-bubble" aria-live="polite"></div>
 
-      <div class="talk talk-right">
-        <div class="bubble" id="mary-bubble" aria-live="polite"></div>
-        <figure class="portrait" data-char="maribel" aria-label="マエリベリー・ハーン"></figure>
-      </div>
+      <div class="stage-body">
+        <div class="subtabs" role="tablist" data-group="mary">
+          <button type="button" role="tab" data-view="chart" aria-selected="true">星図</button>
+          <button type="button" role="tab" data-view="planets" aria-selected="false">惑星</button>
+          <button type="button" role="tab" data-view="consts" aria-selected="false">星座</button>
+          <button type="button" role="tab" data-view="moon" aria-selected="false">月と夜の時間</button>
+          <button type="button" role="tab" data-view="meteors" aria-selected="false">流星群</button>
+        </div>
 
-      <div class="chart-grid">
-        <div class="chart-card">
+        <div class="view" data-group="mary" data-view="chart">
           <div class="chart-head">
-            <h3>星図 <small id="chart-when"></small></h3>
+            <p class="chart-when" id="chart-when"></p>
             <label class="toggle"><input type="checkbox" id="show-lines" checked> 星座線</label>
           </div>
           <div class="chart-box">
             <svg id="star-chart" viewBox="0 0 640 640" role="img" aria-label="全天星図"></svg>
           </div>
           <div class="time-slider">
-            <span id="slider-start">18:00</span>
+            <span>18:00</span>
             <input type="range" id="time-range" min="0" max="44" step="1" value="12" aria-label="星図の時刻">
-            <span id="slider-end">翌5:00</span>
+            <span>翌5:00</span>
           </div>
-          <p class="chart-hint">円の中心が真上（天頂）、ふちが地平線です。星図を頭の上にかざして、方角を合わせて見てください。</p>
+          <p class="view-note">中心が真上、ふちが地平線。頭の上にかざして方角を合わせてね。</p>
         </div>
-
-        <div class="info-col">
-          <div class="info-card" id="moon-card"></div>
-          <div class="info-card" id="sun-card"></div>
+        <div class="view" data-group="mary" data-view="planets" hidden>
+          <div class="planets" id="planets"></div>
         </div>
-      </div>
-
-      <div class="sub-block">
-        <h3>惑星</h3>
-        <div class="planets" id="planets"></div>
-      </div>
-
-      <div class="sub-block">
-        <h3>見ごろの星座 <small id="const-when"></small></h3>
-        <div class="consts" id="consts"></div>
-      </div>
-
-      <div class="sub-block">
-        <h3>これからの流星群</h3>
-        <div class="meteors" id="meteors"></div>
+        <div class="view" data-group="mary" data-view="consts" hidden>
+          <p class="view-note view-note-top"><span id="const-when"></span>に見ごろの星座（星図のスライダーで時刻を変えられます）</p>
+          <div class="consts" id="consts"></div>
+        </div>
+        <div class="view" data-group="mary" data-view="moon" hidden>
+          <div class="info-row">
+            <div class="info-card" id="moon-card"></div>
+            <div class="info-card" id="sun-card"></div>
+          </div>
+        </div>
+        <div class="view" data-group="mary" data-view="meteors" hidden>
+          <div class="meteors" id="meteors"></div>
+        </div>
       </div>
     </section>
   </main>

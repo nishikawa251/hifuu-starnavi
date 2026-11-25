@@ -263,7 +263,9 @@
     const end = vis[vis.length - 1].t;
     const fromDusk = start - dusk < 20 * 60000;
     const toDawn = dawn - end < 20 * 60000;
-    info.period = fromDusk && toDawn ? '一晩中' : fromDusk ? '宵の空' : toDawn ? '明け方の空' : '夜半';
+    const startH = jstParts(start).h;
+    const lateRise = startH >= 18 || startH < 2; // 夜中の2時より前に昇る
+    info.period = fromDusk && toDawn ? '一晩中' : fromDusk ? '宵の空' : toDawn ? (lateRise ? '夜半〜明け方' : '明け方の空') : '夜半';
     Object.assign(info, { start, end, best, bestDir: dirName(best.az) });
     return info;
   }
@@ -496,21 +498,21 @@
       expr = 'cloudy';
     }
 
+    // ひとこと添えるのは1つだけ（月明かり → 寒さ の順）
     const m = sky.moon;
+    let extra = '';
     if (sum.lv >= 3 && !sum.rain) {
       const setInNight = m.set && m.set > sky.dusk && m.set < sky.dawn;
       const riseInNight = m.rise && m.rise > sky.dusk && m.rise < sky.dawn;
-      if (m.illum >= 0.75 && m.upFrac > 0.4) lines.push(`ただ、${m.name}が明るいから、暗い星は見えにくいかも。`);
-      else if (m.upFrac < 0.15 || m.illum < 0.15) lines.push('月明かりの邪魔もないから、暗い星までよく見えるはずよ。');
-      else if (setInNight && m.illum > 0.3) lines.push(`月が${fmtHM(m.set, sum.date)}に沈んだあとが勝負ね。`);
-      else if (riseInNight && m.illum > 0.3) lines.push(`${fmtHM(m.rise, sum.date)}に月が昇ってくるまでが勝負ね。`);
+      if (m.illum >= 0.75 && m.upFrac > 0.4) extra = `ただ、${m.name}が明るいから、暗い星は見えにくいかも。`;
+      else if (m.upFrac < 0.15 || m.illum < 0.15) extra = '月明かりもないから、暗い星までよく見えるはずよ。';
+      else if (setInNight && m.illum > 0.3) extra = `月が${fmtHM(m.set, sum.date)}に沈んだあとが勝負ね。`;
+      else if (riseInNight && m.illum > 0.3) extra = `${fmtHM(m.rise, sum.date)}に月が昇るまでが勝負ね。`;
     }
-    const jmaText = state.jma?.text?.[sum.date];
-    if (jmaText) lines.push(`気象庁の予報だと「${jmaText}」だって。`);
-    if (sum.tmin != null && !sum.rain && sum.lv >= 2) {
-      if (sum.tmin <= 3) lines.push(`夜は${sum.tmin}℃くらいまで冷えるから、しっかり着込んできてね。`);
-      else if (sum.tmin <= 10) lines.push(`${sum.tmin}℃くらいまで下がるから、上着を忘れずに。`);
+    if (!extra && sum.tmin != null && !sum.rain && sum.lv >= 2 && sum.tmin <= 5) {
+      extra = `${sum.tmin}℃くらいまで冷えるから、厚着してきてね。`;
     }
+    if (extra) lines.push(extra);
     return { expr, parts: [lead, { expr, text: lines.join('') }] };
   }
 
@@ -519,52 +521,46 @@
     const parts = [{ text: `蓮子、${when}はこんな星が見れるはずよ！`, cls: 'lead', speed: 45, pause: 400, expr: 'happy' }];
     const magWord = (mag) => (mag <= -3 ? 'ひときわ明るく' : mag <= -1.5 ? 'とても明るく' : mag <= 0.5 ? '明るく' : '');
 
-    // 宵〜夜半に見える惑星を先に、明け方の惑星はおまけで
+    // 話すのは3つまで：①いちばんの惑星 ②月 ③流星群・星座・曇りの日のひとことのどれか
     const vis = sky.planets.filter((p) => p.visible).sort((a, b) => a.mag - b.mag);
-    const evening = vis.filter((p) => p.period !== '明け方の空');
+    const evening = vis.filter((p) => p.period === '宵の空' || p.period === '一晩中');
+    const late = vis.filter((p) => p.period === '夜半' || p.period === '夜半〜明け方');
     const morning = vis.filter((p) => p.period === '明け方の空');
     if (evening.length) {
       const p = evening[0];
-      const mw = magWord(p.mag);
-      let s;
-      if (p.period === '宵の空') s = `日が暮れたら${p.bestDir}の空を見て。${p.constellation}のあたりで、${p.name}が${mw}輝いているわ。`;
-      else if (p.period === '一晩中') s = `${p.name}が一晩中見えるわ。${fmtHM(p.best.t, sky.date)}ごろ、${p.bestDir}の空で${mw}輝いているはずよ（${p.constellation}）。`;
-      else s = `${fmtHM(p.start, sky.date)}ごろから${p.name}が昇ってくるわ（${p.constellation}）。`;
-      const others = evening.slice(1).map((x) => x.name);
-      if (others.length) s += `${others.join('、')}も見えるわね。`;
-      parts.push({ text: s });
-    }
-    if (morning.length) {
-      const names = morning.map((p) => (p.mag <= -3 ? `ひときわ明るい${p.name}` : p.name)).join('、');
-      parts.push({ text: evening.length ? `早起きするなら、明け方の空に${names}も並ぶわよ。` : `惑星を見るなら明け方ね。${morning[0].bestDir}の空に${names}が見えるわ。` });
+      parts.push({ text: `${p.period === '宵の空' ? '日が暮れたら' : '一晩中、'}${p.bestDir}の空に${p.name}が${magWord(p.mag)}光っているわ。` });
+    } else if (late.length) {
+      const p = late[0];
+      parts.push({ text: `${fmtHM(p.start, sky.date)}ごろになると、${p.name}が昇ってくるわ。` });
+    } else if (morning.length) {
+      const p = morning[0];
+      parts.push({ text: `惑星なら明け方ね。${p.bestDir}の空に${p.name}が${magWord(p.mag)}光っているわ。` });
     }
 
     const m = sky.moon;
-    let ms = `月は${m.name}（月齢${m.age.toFixed(1)}）。`;
     const setInNight = m.set && m.set > sky.dusk && m.set < sky.dawn;
     const riseInNight = m.rise && m.rise > sky.dusk && m.rise < sky.dawn;
-    if (m.upFrac < 0.05) ms += '夜のあいだは沈んでいるから、星を見るには絶好ね。';
-    else if (m.upFrac > 0.9) ms += '一晩中空にいるわね。';
+    let ms = `月は${m.name}。`;
+    if (m.upFrac < 0.05) ms += '夜は沈んでいるから、星にはうってつけね。';
+    else if (m.upFrac > 0.9) ms += '一晩中、空にいるわ。';
     else if (m.upAtDusk && setInNight) ms += `${fmtHM(m.set, sky.date)}に沈むわ。`;
     else if (riseInNight) ms += `${fmtHM(m.rise, sky.date)}に昇ってくるわ。`;
     parts.push({ text: ms });
 
-    const consts = constellationsAt(atJst(sky.date, 21 * 60), state.obs).filter((c) => c.size >= 3 && c.name !== 'こぐま座');
-    if (consts.length) {
-      const c = consts[0];
-      parts.push({ text: `21時ごろは${c.name}が${c.alt > 72 ? '頭の真上あたり' : `${c.dir}の空`}に見えるわ。${c.tip}` });
-    }
-
-    const shower = upcomingShowers(sky.date, 10)[0];
-    if (shower) {
-      if (shower.diff === 0 || shower.diff === 1) parts.push({ expr: 'excited', text: `しかも${shower.name}の極大の夜よ！ 流れ星、いくつ数えられるかしら。` });
-      else if (shower.diff > 1) parts.push({ text: `それと、${dateInfo(shower.date).md}は${shower.name}の極大よ。覚えておいてね。` });
-    }
-
     let expr = 'happy';
-    if (state.weatherStatus === 'ok' && sum.hasData && (sum.rain || sum.lv <= 2)) {
-      parts.push({ expr: 'gentle', text: '……雲で隠れちゃっても、星はちゃんとそこにあるのよ。私の目には、ちょっとだけ見えちゃうけど。' });
+    const shower = upcomingShowers(sky.date, 10)[0];
+    const badSky = state.weatherStatus === 'ok' && sum.hasData && (sum.rain || sum.lv <= 2);
+    if (shower && (shower.diff === 0 || shower.diff === 1)) {
+      parts.push({ expr: 'excited', text: `しかも${shower.name}の極大の夜よ！` });
+      expr = 'excited';
+    } else if (badSky) {
+      parts.push({ expr: 'gentle', text: '……雲に隠れても、星はちゃんとそこにあるのよ。私には、ちょっとだけ見えちゃうけど。' });
       expr = 'gentle';
+    } else if (shower && shower.diff > 1) {
+      parts.push({ text: `${dateInfo(shower.date).md}は${shower.name}の極大よ。覚えておいてね。` });
+    } else {
+      const c = constellationsAt(atJst(sky.date, 21 * 60), state.obs).find((x) => x.size >= 3 && x.name !== 'こぐま座');
+      if (c) parts.push({ text: `21時ごろは${c.name}が${c.alt > 72 ? '頭の真上' : `${c.dir}の空`}に見えるわ。` });
     }
     return { expr, parts };
   }
@@ -573,9 +569,11 @@
    * 描画：蓮子の星空予報
    * --------------------------------------------------------- */
   function renderTabs() {
+    // タブは「今夜」「明日の夜」だけ。ほかの日は「1週間」から選ぶと3つ目のタブとして出る
     const box = $('night-tabs');
     box.innerHTML = '';
-    for (let i = 0; i < NIGHTS; i++) {
+    const shown = state.offset >= 2 ? [0, 1, state.offset] : [0, 1];
+    for (const i of shown) {
       const date = addDays(state.base, i);
       const b = document.createElement('button');
       b.type = 'button';
@@ -608,7 +606,7 @@
       $('index-label').textContent = state.weatherStatus === 'error' ? '天気データを取得できませんでした' : 'まだ予報がありません';
       $('index-stars').textContent = '';
       ring.style.setProperty('--val', 0);
-      facts.innerHTML = `<dt>月</dt><dd>${esc(sky.moon.name)}（${Math.round(sky.moon.illum * 100)}%）</dd>`;
+      facts.innerHTML = `<dt>月</dt><dd>${esc(sky.moon.name)}</dd>`;
       $('hourly').innerHTML = `<p class="${state.weatherStatus === 'error' ? 'error-note' : 'empty'}">${state.weatherStatus === 'error' ? '通信に失敗しました。時間をおいて再読み込みしてください。' : 'この日の時間別予報はまだありません。'}</p>`;
     } else {
       const L = LEVELS[sum.lv];
@@ -617,12 +615,12 @@
       $('index-stars').textContent = L.stars;
       ring.style.setProperty('--val', sum.idx);
       ring.style.setProperty('--col', lvColor(sum.lv));
-      const moonUp = sky.moon.upFrac > 0.1 ? `${Math.round(sky.moon.illum * 100)}%（${esc(sky.moon.name)}）` : 'なし（夜は沈んでいる）';
+      const m = sky.moon;
+      const moonLight = m.upFrac < 0.1 || m.illum < 0.15 ? 'なし' : m.illum >= 0.75 ? '明るい' : m.illum >= 0.4 ? 'ふつう' : '弱い';
       facts.innerHTML = `
-        <dt>狙い目</dt><dd>${sum.best.morning ? '翌' : ''}${sum.best.h}時ごろ（指数${sum.best.idx}）</dd>
-        <dt>平均雲量</dt><dd>${sum.avgCloud}%</dd>
-        <dt>最低気温</dt><dd>${sum.tmin != null ? `${sum.tmin}℃` : '—'}</dd>
-        <dt>月明かり</dt><dd>${moonUp}</dd>`;
+        <dt>狙い目</dt><dd>${sum.best.morning ? '翌' : ''}${sum.best.h}時ごろ</dd>
+        <dt>雲の量</dt><dd>${sum.avgCloud}%</dd>
+        <dt>月明かり</dt><dd>${moonLight}</dd>`;
       renderHourly(sum);
     }
     renderJmaLine(sum.date);
@@ -717,21 +715,20 @@
           <p class="moon-name">${m.name}</p>
           <dl class="facts">
             <dt>月齢</dt><dd>${m.age.toFixed(1)}</dd>
-            <dt>輝いている部分</dt><dd>${Math.round(m.illum * 100)}%</dd>
             <dt>月の出</dt><dd>${riseText}</dd>
             <dt>月の入</dt><dd>${fmtHM(m.set, d)}</dd>
           </dl>
         </div>
       </div>`;
     $('sun-card').innerHTML = `
-      <h3>暗くなる時間</h3>
+      <h3>夜の時間</h3>
       <dl class="facts">
         <dt>日の入</dt><dd>${fmtHM(sky.sunset, d)}</dd>
         <dt>星が見えはじめる</dt><dd>${fmtHM(sky.dusk, d)}</dd>
-        <dt>完全に暗くなる</dt><dd>${fmtHM(sky.astroDusk, d)}</dd>
         <dt>空が白みはじめる</dt><dd>${fmtHM(sky.astroDawn, d)}</dd>
         <dt>日の出</dt><dd>${fmtHM(sky.sunrise, d)}</dd>
       </dl>`;
+    renderPlanets(sky);
 
     const showers = upcomingShowers(state.base, 60);
     $('meteors').innerHTML = showers.length ? showers.map((s) => {
@@ -755,11 +752,10 @@
     const date = chartDate();
     const label = fmtHM(date, sky.date);
     const info = dateInfo(sky.date);
-    $('chart-when').textContent = `${info.md}（${info.wd}） ${label}`;
+    $('chart-when').textContent = `${info.md}（${info.wd}） ${label} の空`;
     $('const-when').textContent = `${label}ごろ`;
     renderChart(date);
-    renderPlanets(sky, date);
-    const consts = constellationsAt(date, state.obs).slice(0, 8);
+    const consts = constellationsAt(date, state.obs).slice(0, 6);
     $('consts').innerHTML = consts.length ? consts.map((c) => `
       <div class="const">
         <div class="k-head"><span class="k-name">${c.name}</span><span class="k-pos">${posText(c.alt, c.dir)}</span></div>
@@ -767,22 +763,18 @@
       </div>`).join('') : '<p class="empty">この時刻は明るい星座が低い位置にあります。</p>';
   }
 
-  function renderPlanets(sky, date) {
-    $('planets').innerHTML = sky.planets.map((p) => {
-      const now = bodyHorizon(p.body, date, state.obs);
-      let body;
-      if (!p.visible) {
-        body = '<p>この夜は見えません（太陽に近い位置にいます）</p>';
-      } else {
-        body = `<p><strong>${p.period}</strong> ${fmtHM(p.start, sky.date)}〜${fmtHM(p.end, sky.date)}</p>
-          <p>いちばん高いのは${fmtHM(p.best.t, sky.date)}ごろ（${p.bestDir}・${Math.round(p.best.alt)}°）</p>
-          <p>星図の時刻: ${now.altitude > 0 ? `${dirName(now.azimuth)}・高さ${Math.round(now.altitude)}°` : '地平線の下'}</p>`;
-      }
-      return `<div class="planet${p.visible ? '' : ' hidden-planet'}">
-        <div class="p-head"><span class="p-dot" style="background:${p.color};color:${p.color}"></span><span class="p-name">${p.name}</span><span class="p-mag">${p.mag.toFixed(1)}等 ・ ${p.constellation}</span></div>
-        ${body}
-      </div>`;
-    }).join('');
+  // 見える惑星だけカードにして、見えないものは1行にまとめる
+  function renderPlanets(sky) {
+    const order = { 宵の空: 0, 一晩中: 1, 夜半: 2, '夜半〜明け方': 3, 明け方の空: 4 };
+    const vis = sky.planets.filter((p) => p.visible).sort((a, b) => order[a.period] - order[b.period] || a.mag - b.mag);
+    const off = sky.planets.filter((p) => !p.visible).map((p) => p.name);
+    const cards = vis.map((p) => `<div class="planet">
+        <div class="p-head"><span class="p-dot" style="background:${p.color};color:${p.color}"></span><span class="p-name">${p.name}</span><span class="p-mag">${p.mag.toFixed(1)}等・${p.constellation}</span></div>
+        <p><strong>${p.period}</strong> ${fmtHM(p.start, sky.date)}〜${fmtHM(p.end, sky.date)}</p>
+        <p>${fmtHM(p.best.t, sky.date)}ごろ ${p.bestDir}の空・高さ${Math.round(p.best.alt)}°</p>
+      </div>`).join('');
+    $('planets').innerHTML = (cards || '<p class="empty">この夜に見やすい惑星はありません。</p>')
+      + (off.length ? `<p class="planet-off">この夜は見えない: ${off.join('、')}（太陽に近い位置）</p>` : '');
   }
 
   function renderChart(date) {
@@ -1117,6 +1109,16 @@
     $('show-lines').addEventListener('change', (e) => {
       state.showLines = e.target.checked;
       renderChartTime();
+    });
+    // 各パネルの中のタブ切り替え
+    document.querySelectorAll('.subtabs').forEach((tabs) => {
+      const group = tabs.dataset.group;
+      tabs.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-view]');
+        if (!btn) return;
+        tabs.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b === btn)));
+        document.querySelectorAll(`.view[data-group="${group}"]`).forEach((v) => { v.hidden = v.dataset.view !== btn.dataset.view; });
+      });
     });
     tickClock();
     setInterval(tickClock, 1000);
