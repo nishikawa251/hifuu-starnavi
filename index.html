@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>秘封倶楽部の星空ナビ</title>
+  <meta name="description" content="宇佐見蓮子とマエリベリー・ハーンが、明日の星空予報と見える星を案内する東方Project二次創作サイト。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="sky-bg" aria-hidden="true"></canvas>
+
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <div class="brand">
+        <p class="brand-sub">Hifuu Club Star Navigation</p>
+        <h1>秘封倶楽部の星空ナビ</h1>
+      </div>
+      <div class="header-tools">
+        <label class="loc-picker">
+          <span class="visually-hidden">観察地</span>
+          <select id="loc-select"></select>
+        </label>
+        <button type="button" id="geo-btn" class="ghost-btn" title="現在地を使う">現在地</button>
+      </div>
+    </div>
+    <div class="wrap star-clock" id="star-clock" aria-live="off">
+      <span class="clock-label">蓮子の星時計</span>
+      <span class="clock-time" id="clock-time">--:--:--</span>
+      <span class="clock-sub" id="clock-sidereal">地方恒星時 --h--m</span>
+    </div>
+  </header>
+
+  <nav class="night-tabs wrap" aria-label="観察する夜">
+    <div class="tabs" id="night-tabs" role="tablist"></div>
+  </nav>
+
+  <main class="wrap">
+    <!-- ============ 蓮子の星空予報 ============ -->
+    <section class="panel renko-panel" id="renko">
+      <div class="panel-head">
+        <h2><span class="who">蓮子</span>の星空予報</h2>
+        <p class="panel-note">雲の量から「星空指数」を出しているわ</p>
+      </div>
+
+      <div class="talk">
+        <figure class="portrait" data-char="renko" aria-label="宇佐見蓮子"></figure>
+        <div class="bubble" id="renko-bubble" aria-live="polite"></div>
+      </div>
+
+      <div class="forecast-grid">
+        <div class="index-card" id="index-card">
+          <p class="index-date" id="index-date"></p>
+          <div class="index-main">
+            <div class="index-ring" id="index-ring">
+              <span class="index-num" id="index-num">--</span>
+              <span class="index-unit">星空指数</span>
+            </div>
+            <div class="index-detail">
+              <p class="index-label" id="index-label">読み込み中…</p>
+              <p class="index-stars" id="index-stars" aria-hidden="true"></p>
+              <dl class="facts" id="index-facts"></dl>
+            </div>
+          </div>
+          <p class="jma-line" id="jma-line"></p>
+        </div>
+
+        <div class="hourly-card">
+          <h3>時間ごとの星空指数</h3>
+          <div class="hourly" id="hourly"></div>
+          <p class="legend">
+            <span class="lg lg-5">満天</span><span class="lg lg-4">よく見える</span><span class="lg lg-3">雲の合間に</span><span class="lg lg-2">見えにくい</span><span class="lg lg-1">見えない</span>
+          </p>
+        </div>
+      </div>
+
+      <div class="sub-block">
+        <h3>1週間の星空指数</h3>
+        <div class="weekly" id="weekly"></div>
+      </div>
+
+      <div class="sub-block">
+        <h3>全国の星空指数 <small id="nation-when"></small></h3>
+        <div class="nation" id="nation"></div>
+      </div>
+    </section>
+
+    <!-- ============ メリーの星空案内 ============ -->
+    <section class="panel mary-panel" id="mary">
+      <div class="panel-head">
+        <h2><span class="who">メリー</span>の星空案内</h2>
+        <p class="panel-note">見える星を、時刻ごとに星図で</p>
+      </div>
+
+      <div class="talk talk-right">
+        <div class="bubble" id="mary-bubble" aria-live="polite"></div>
+        <figure class="portrait" data-char="maribel" aria-label="マエリベリー・ハーン"></figure>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="chart-head">
+            <h3>星図 <small id="chart-when"></small></h3>
+            <label class="toggle"><input type="checkbox" id="show-lines" checked> 星座線</label>
+          </div>
+          <div class="chart-box">
+            <svg id="star-chart" viewBox="0 0 640 640" role="img" aria-label="全天星図"></svg>
+          </div>
+          <div class="time-slider">
+            <span id="slider-start">18:00</span>
+            <input type="range" id="time-range" min="0" max="44" step="1" value="12" aria-label="星図の時刻">
+            <span id="slider-end">翌5:00</span>
+          </div>
+          <p class="chart-hint">円の中心が真上（天頂）、ふちが地平線です。星図を頭の上にかざして、方角を合わせて見てください。</p>
+        </div>
+
+        <div class="info-col">
+          <div class="info-card" id="moon-card"></div>
+          <div class="info-card" id="sun-card"></div>
+        </div>
+      </div>
+
+      <div class="sub-block">
+        <h3>惑星</h3>
+        <div class="planets" id="planets"></div>
+      </div>
+
+      <div class="sub-block">
+        <h3>見ごろの星座 <small id="const-when"></small></h3>
+        <div class="consts" id="consts"></div>
+      </div>
+
+      <div class="sub-block">
+        <h3>これからの流星群</h3>
+        <div class="meteors" id="meteors"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>本サイトは東方Project（上海アリス幻樂団）の二次創作です。公式とは関係ありません。</p>
+      <ul class="credits">
+        <li>気象データ: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>（気象庁 MSM / GSM モデル, CC BY 4.0）</li>
+        <li>天気予報の文章: 出典 <a href="https://www.jma.go.jp/" target="_blank" rel="noopener">気象庁ホームページ</a>（加工して表示）</li>
+        <li>天体計算: <a href="https://github.com/cosinekitty/astronomy" target="_blank" rel="noopener">Astronomy Engine</a>（MIT License）</li>
+        <li id="credit-art">立ち絵: 4riON 様「<a href="https://seiga.nicovideo.jp/seiga/im11866135" target="_blank" rel="noopener">宇佐見蓮子（霊長新益京）立ち絵素材</a>」「<a href="https://seiga.nicovideo.jp/seiga/im11881275" target="_blank" rel="noopener">マエリベリー・ハーン（霊長新益京）立ち絵素材</a>」</li>
+      </ul>
+      <p class="disclaimer">星空指数は雲量・降水・湿度から本サイトが独自に計算した目安です。日本気象協会の「星空指数」とは別のものです。</p>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/skydata.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
