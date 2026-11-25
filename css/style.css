@@ -265,6 +265,87 @@ main { display: grid; gap: 32px; padding: 8px 16px 48px; }
 .error-note { color: #ffb4bd; font-size: 0.85rem; }
 .loading { color: var(--text-faint); font-size: 0.9rem; }
 
+/* ---------- オープニング ---------- */
+html.splash-on { overflow: hidden; }
+.splash {
+  --h: min(70vh, 95vw);                 /* シルエットの高さ */
+  position: fixed; inset: 0; z-index: 100; overflow: hidden; cursor: pointer;
+  background: radial-gradient(ellipse at 50% 35%, #1b2462 0%, #0b1233 45%, #050816 100%);
+  animation: sp-out 0.6s ease 3s forwards;   /* JS が動かなくても 3.6 秒で消える */
+}
+.splash.sp-leave { animation: sp-out 0.4s ease forwards; }
+@keyframes sp-out { to { opacity: 0; visibility: hidden; } }
+@keyframes sp-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.sp-sky {
+  position: absolute; inset: 0; opacity: 0.9;
+  background-image:
+    radial-gradient(1.2px 1.2px at 22px 34px, #fff, transparent),
+    radial-gradient(1px 1px at 130px 90px, rgba(255, 255, 255, 0.8), transparent),
+    radial-gradient(1.5px 1.5px at 70px 150px, #fff, transparent),
+    radial-gradient(1px 1px at 180px 20px, rgba(255, 255, 255, 0.7), transparent),
+    radial-gradient(1px 1px at 240px 130px, rgba(255, 255, 255, 0.9), transparent);
+  background-size: 260px 180px;
+  animation: sp-twinkle 2.4s ease-in-out infinite alternate;
+}
+@keyframes sp-twinkle { from { opacity: 0.55; } to { opacity: 1; } }
+
+.sp-moon {
+  position: absolute; left: 50%; bottom: calc(var(--h) * 0.78);
+  width: min(64vh, 86vw); aspect-ratio: 1; border-radius: 50%; transform: translate(-50%, 50%);
+  background:
+    radial-gradient(circle at 34% 38%, rgba(214, 196, 140, 0.35) 0 7%, transparent 8%),
+    radial-gradient(circle at 62% 30%, rgba(214, 196, 140, 0.28) 0 5%, transparent 6%),
+    radial-gradient(circle at 58% 64%, rgba(214, 196, 140, 0.3) 0 9%, transparent 10%),
+    radial-gradient(circle at 42% 40%, #fffbea 0%, #fbefc6 55%, #efd99b 100%);
+  box-shadow: 0 0 60px 12px rgba(255, 236, 180, 0.35), 0 0 180px 60px rgba(255, 236, 180, 0.14);
+  animation: sp-moon 1.2s ease-out 0.1s both;
+}
+@keyframes sp-moon { from { opacity: 0; transform: translate(-50%, 58%) scale(0.92); } to { opacity: 1; transform: translate(-50%, 50%) scale(1); } }
+
+.sp-shoot {
+  position: absolute; top: 12%; left: 6%; width: 170px; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), #fff);
+  opacity: 0; animation: sp-shoot 0.9s ease-in 1s both;
+}
+@keyframes sp-shoot {
+  0% { opacity: 0; transform: translate(0, 0) rotate(16deg); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(55vw, 16vw) rotate(16deg); }
+}
+
+.sp-figs { position: absolute; left: 50%; bottom: 0; height: var(--h); transform: translateX(-50%); display: flex; align-items: flex-end; }
+.sp-fig { display: block; width: auto; filter: drop-shadow(0 0 1.5px rgba(255, 240, 200, 0.9)) drop-shadow(0 0 14px rgba(255, 236, 180, 0.25)); }
+/* 元画像の縮尺をそろえる（蓮子 692px / メリー 762px） */
+.sp-renko { height: calc(var(--h) * 0.908); margin-right: calc(var(--h) * -0.1); animation: sp-from-left 0.9s ease-out 0.5s both; }
+.sp-mary { height: var(--h); animation: sp-from-right 0.9s ease-out 0.65s both; }
+@keyframes sp-from-left { from { opacity: 0; transform: translateX(-36px); } to { opacity: 1; transform: none; } }
+@keyframes sp-from-right { from { opacity: 0; transform: translateX(36px); } to { opacity: 1; transform: none; } }
+
+.sp-ground {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 52%;
+  background: linear-gradient(to top, #050816 0%, rgba(5, 8, 22, 0.92) 26%, rgba(5, 8, 22, 0.7) 48%, rgba(5, 8, 22, 0.38) 68%, rgba(5, 8, 22, 0.12) 86%, rgba(5, 8, 22, 0) 100%);
+}
+
+.sp-logo { position: absolute; left: 0; right: 0; bottom: 7vh; padding: 0 16px; text-align: center; }
+.sp-sub { margin: 0; font-size: 0.72rem; letter-spacing: 0.4em; color: #b8c0e6; text-transform: uppercase; animation: sp-fade 0.8s ease 1.2s both; }
+.sp-title {
+  margin: 0.15em 0 0.2em; font-family: var(--font-head); font-weight: 700; color: #fff; white-space: nowrap;
+  font-size: clamp(1.7rem, 7.4vw, 3.5rem); letter-spacing: 0.08em;
+  text-shadow: 0 0 18px rgba(143, 211, 255, 0.6), 0 0 42px rgba(185, 155, 255, 0.4);
+}
+.sp-title span { display: inline-block; animation: sp-char 0.7s ease-out both; animation-delay: calc(1.3s + var(--i) * 70ms); }
+@keyframes sp-char { from { opacity: 0; transform: translateY(12px); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
+.sp-names { margin: 0; font-size: 0.82rem; color: #cdd3f3; letter-spacing: 0.08em; animation: sp-fade 0.8s ease 2.1s both; }
+.sp-n-renko { color: #ff9aa5; }
+.sp-n-mary { color: #cdb8ff; }
+/* 縦長の画面では、ロゴを上の星空に置いてバランスをとる */
+@media (max-aspect-ratio: 3/4) {
+  .sp-logo { bottom: auto; top: 17vh; }
+  .sp-title { font-size: clamp(1.7rem, 8.6vw, 3.5rem); }
+}
+.sp-skip { position: absolute; top: 14px; right: 16px; margin: 0; font-size: 0.72rem; color: rgba(200, 210, 255, 0.55); animation: sp-fade 0.5s ease 0.8s both; }
+
 /* ---------- responsive ---------- */
 @media (max-width: 900px) {
   :root { --portrait-w: 240px; }
@@ -302,4 +383,8 @@ main { display: grid; gap: 32px; padding: 8px 16px 48px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .portrait.speaking, .bubble .caret { animation: none; }
+  /* 動きを減らす設定のときは、オープニングは止め絵で短く */
+  .splash *, .splash *::before { animation-duration: 0.01s !important; animation-delay: 0s !important; }
+  .splash { animation: sp-out 0.4s ease 1.2s forwards; }
+  .splash .sp-sky { animation: none !important; }
 }

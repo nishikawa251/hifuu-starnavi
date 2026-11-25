@@ -44,6 +44,8 @@ GitHub Pages で公開しています（main ブランチのルートをその�
 | `img/maribel/surprise.png` | 驚き | 流星群の極大の夜 |
 | `img/maribel/eyes_closed.png` | 目閉じ | 曇りの夜のひとこと |
 
+`img/splash/renko.png` と `img/splash/maribel.png` は、オープニング用に立ち絵（微笑）の形だけを一色で塗りつぶしたシルエットです。
+
 表情の割り当ては `js/config.js` の `CHARACTER_IMAGES` で変えられます。
 クレジットは `index.html` のフッター（`id="credit-art"`）にあり、作者の希望に合わせてニコニコ静画のページにリンクしています。
 

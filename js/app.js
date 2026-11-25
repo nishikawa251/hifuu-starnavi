@@ -43,6 +43,7 @@
     summaries: [],
     skies: [],
     reqId: 0,
+    introDone: false,   // オープニングが終わるまでセリフを始めない
   };
 
   /* ---------------------------------------------------------
@@ -962,6 +963,7 @@
   }
 
   function talkAll() {
+    if (!state.introDone) return; // オープニング中は待つ（終わったら initSplash から呼ぶ）
     const sum = state.summaries[state.offset];
     const sky = state.skies[state.offset];
     if (state.weatherStatus === 'loading') {
@@ -1070,6 +1072,34 @@
     }
   }
 
+  /* ---------------------------------------------------------
+   * オープニング（CSS アニメーション。ここでは終わりの合図とスキップだけ扱う）
+   * --------------------------------------------------------- */
+  function initSplash() {
+    const el = $('splash');
+    if (!el) { state.introDone = true; return; }
+    document.documentElement.classList.add('splash-on');
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      el.classList.add('sp-leave');
+      setTimeout(() => {
+        el.remove();
+        document.documentElement.classList.remove('splash-on');
+      }, 420);
+      state.introDone = true;
+      if (state.summaries.length) talkAll();
+    };
+    el.addEventListener('click', finish);
+    document.addEventListener('keydown', finish, { once: true });
+    // CSS の最後のフェードアウト（sp-out）が終わったら本編へ。表示が遅れても演出どおりに終わる
+    el.addEventListener('animationend', (e) => {
+      if (e.target === el && e.animationName === 'sp-out') finish();
+    });
+    setTimeout(finish, 7000); // アニメーションが動かない環境向けの保険
+  }
+
   function initBackground() {
     const c = $('sky-bg');
     const ctx = c.getContext('2d');
@@ -1106,6 +1136,7 @@
   }
 
   function init() {
+    initSplash();
     if (!A) {
       document.body.insertAdjacentHTML('afterbegin', '<p class="error-note wrap">天体計算ライブラリを読み込めませんでした。ネットワークを確認してください。</p>');
       return;

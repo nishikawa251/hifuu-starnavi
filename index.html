@@ -11,6 +11,24 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <!-- オープニング：月をバックに二人のシルエット → ロゴ → 本編へ（タップでスキップ） -->
+  <div id="splash" class="splash" role="presentation">
+    <div class="sp-sky" aria-hidden="true"></div>
+    <div class="sp-moon" aria-hidden="true"></div>
+    <div class="sp-shoot" aria-hidden="true"></div>
+    <div class="sp-figs" aria-hidden="true">
+      <img class="sp-fig sp-renko" src="img/splash/renko.png" alt="">
+      <img class="sp-fig sp-mary" src="img/splash/maribel.png" alt="">
+    </div>
+    <div class="sp-ground" aria-hidden="true"></div>
+    <div class="sp-logo">
+      <p class="sp-sub">Hifuu Club Star Navigation</p>
+      <p class="sp-title" aria-label="秘封倶楽部の星空ナビ"><span style="--i:0">秘</span><span style="--i:1">封</span><span style="--i:2">倶</span><span style="--i:3">楽</span><span style="--i:4">部</span><span style="--i:5">の</span><span style="--i:6">星</span><span style="--i:7">空</span><span style="--i:8">ナ</span><span style="--i:9">ビ</span></p>
+      <p class="sp-names"><span class="sp-n-renko">宇佐見蓮子</span> ＆ <span class="sp-n-mary">マエリベリー・ハーン</span></p>
+    </div>
+    <p class="sp-skip">タップでスキップ</p>
+  </div>
+
   <canvas id="sky-bg" aria-hidden="true"></canvas>
 
   <header class="site-header">
