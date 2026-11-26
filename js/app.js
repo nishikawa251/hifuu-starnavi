@@ -589,6 +589,7 @@
     log.appendChild(cur);
     const el = cur.querySelector('.chat-text');
     $('chat-count').textContent = L.ui.chatProgress(chat.i + 1, chat.lines.length);
+    syncTranscript();
     const fig = isStage() ? document.querySelector(`.portrait[data-char="${char}"]`) : null;
     if (fig) setPortrait(char, expr); // そばにいる二人の表情も変える
     const pace = L.chatPace;
@@ -614,6 +615,24 @@
     };
     tick();
   }
+  // ログ：いま話しているところまでの台詞を一覧にする（開いているときだけ書き直す）
+  function syncTranscript() {
+    const ol = $('chat-transcript');
+    if (!ol || ol.hidden) return;
+    ol.innerHTML = chat.lines.slice(0, chat.i + 1).map(([who, , text]) => {
+      const char = who === 'renko' ? 'renko' : 'maribel';
+      return `<li class="${char === 'renko' ? 'renko' : 'mary'}"><span class="t-name">${L.short[char]}</span>${esc(text)}</li>`;
+    }).join('');
+    ol.scrollTop = ol.scrollHeight;
+  }
+  function toggleTranscript() {
+    const ol = $('chat-transcript');
+    const btn = $('chat-log-btn');
+    ol.hidden = !ol.hidden;
+    btn.setAttribute('aria-expanded', String(!ol.hidden));
+    syncTranscript();
+  }
+
   function finishChat() {
     stopChatTimers();
     chat.done = true;
@@ -628,6 +647,7 @@
     chat.i = -1;
     chat.done = false;
     $('chat-replay').hidden = true;
+    syncTranscript();
     nextChatLine();
   }
 
@@ -648,6 +668,8 @@
     chat.lines = typeof t.ep.lines === 'function' ? t.ep.lines(ctx) : t.ep.lines;
     const again = $('chat-replay');
     if (again) again.hidden = true;
+    const logBtn = $('chat-log-btn');
+    if (logBtn) logBtn.hidden = false;
     nextChatLine();
   }
 
@@ -1489,6 +1511,8 @@
     });
     const again = $('chat-replay');
     if (again) again.addEventListener('click', replayChat);
+    const logBtn = $('chat-log-btn');
+    if (logBtn) logBtn.addEventListener('click', toggleTranscript);
     const startWhenSeen = () => {
       chat.seen = true;
       if (chat.pending) { chat.pending = false; playChat(); }
