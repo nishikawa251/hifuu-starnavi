@@ -1,12 +1,14 @@
 /* =========================================================
  * 秘封倶楽部の星空ナビ — メインスクリプト
- *  気象: Open-Meteo（気象庁モデル） / 気象庁 bosai JSON
+ *  気象: Open-Meteo / 気象庁 bosai JSON（日本版のみ）
  *  天体: Astronomy Engine
+ *  画面の文言と台詞は言語ごとのファイル（js/lang-ja.js / js/lang-en.js）にあります。
  * ========================================================= */
 (() => {
   'use strict';
 
   const A = window.Astronomy;
+  const L = window.LANG;
   const $ = (id) => document.getElementById(id);
   const pad = (n) => String(n).padStart(2, '0');
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -14,24 +16,24 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const REDUCE_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  const WD = ['日', '月', '火', '水', '木', '金', '土'];
-  const DIRS = ['北', '北北東', '北東', '東北東', '東', '東南東', '南東', '南南東', '南', '南南西', '南西', '西南西', '西', '西北西', '北西', '北北西'];
   const PLANETS = [
-    { body: 'Mercury', name: '水星', color: '#d8c3a0' },
-    { body: 'Venus', name: '金星', color: '#fff4c8' },
-    { body: 'Mars', name: '火星', color: '#ff8a5c' },
-    { body: 'Jupiter', name: '木星', color: '#ffd9a0' },
-    { body: 'Saturn', name: '土星', color: '#eadb9c' },
-  ];
+    { body: 'Mercury', color: '#d8c3a0' },
+    { body: 'Venus', color: '#fff4c8' },
+    { body: 'Mars', color: '#ff8a5c' },
+    { body: 'Jupiter', color: '#ffd9a0' },
+    { body: 'Saturn', color: '#eadb9c' },
+  ].map((p) => ({ ...p, name: L.planets[p.body] }));
   const SLIDER_START_MIN = 18 * 60;
   const SLIDER_STEP_MIN = 15;
   const NIGHTS = 7;
-  const STORAGE_KEY = 'hifuu-starnavi:loc';
+  const STORAGE_KEY = L.storageKey;
+  const BROWSER_TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || L.tz; } catch (e) { return L.tz; } })();
 
   const state = {
     loc: null,
     obs: null,
-    base: null,         // 「今夜」の日付 (YYYY-MM-DD)
+    tz: L.tz,           // 観察地のタイムゾーン
+    base: null,         // 「今夜」の日付 (YYYY-MM-DD、観察地の暦)
     offset: 1,          // 0=今夜, 1=明日 …
     step: 12,           // 星図の時刻（18:00 + step*15分）
     showLines: true,
@@ -48,45 +50,57 @@
   };
 
   /* ---------------------------------------------------------
-   * 時刻まわり（日本時間で固定。日本は夏時間なし）
+   * 時刻まわり（観察地のタイムゾーンで数える。日本版はいつも日本時間）
    * --------------------------------------------------------- */
-  const JST_MS = 9 * 3600e3;
-  const jstParts = (d) => {
-    const t = new Date(d.getTime() + JST_MS);
+  const tzFormats = {};
+  const offsetCache = new Map();
+  // その瞬間の「現地時刻 − UTC」（ミリ秒）。夏時間も Intl に任せる
+  function tzOffset(t, tz) {
+    const key = `${tz}|${Math.floor(t / 900000)}`;
+    let v = offsetCache.get(key);
+    if (v === undefined) {
+      const f = tzFormats[tz] || (tzFormats[tz] = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric',
+      }));
+      const o = {};
+      for (const x of f.formatToParts(new Date(t))) o[x.type] = x.value;
+      v = Date.UTC(+o.year, +o.month - 1, +o.day, +o.hour % 24, +o.minute, +o.second) - Math.floor(t / 1000) * 1000;
+      if (offsetCache.size > 20000) offsetCache.clear();
+      offsetCache.set(key, v);
+    }
+    return v;
+  }
+  const shifted = (d, tz) => new Date(d.getTime() + tzOffset(d.getTime(), tz));
+  function localParts(d, tz = state.tz) {
+    const t = shifted(d, tz);
     return { y: t.getUTCFullYear(), mo: t.getUTCMonth() + 1, d: t.getUTCDate(), h: t.getUTCHours(), mi: t.getUTCMinutes(), s: t.getUTCSeconds(), wd: t.getUTCDay() };
-  };
-  const jstDate = (d) => new Date(d.getTime() + JST_MS).toISOString().slice(0, 10);
-  const atJst = (dateStr, minutes) => new Date(Date.parse(dateStr + 'T00:00:00+09:00') + minutes * 60000);
-  const addDays = (dateStr, n) => jstDate(atJst(dateStr, 12 * 60 + n * 1440));
+  }
+  const localDate = (d, tz = state.tz) => shifted(d, tz).toISOString().slice(0, 10);
+  // 現地の暦の日付 + 0時からの分 → その瞬間
+  function atLocal(dateStr, minutes, tz = state.tz) {
+    const wall = Date.parse(`${dateStr}T00:00:00Z`) + minutes * 60000;
+    let t = wall - tzOffset(wall, tz);
+    t = wall - tzOffset(t, tz);
+    return new Date(t);
+  }
+  const addDays = (dateStr, n) => new Date(Date.parse(`${dateStr}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
   const dayDiff = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);
-  const hourKey = (d) => `${jstDate(d)}T${pad(jstParts(d).h)}:00`;
+  // 天気データは UTC の1時間ごと（Open-Meteo に timezone=GMT で頼む）
+  const hourKey = (d) => `${d.toISOString().slice(0, 13)}:00`;
   function fmtHM(d, baseDate) {
     if (!d) return '—';
-    const p = jstParts(d);
-    const next = baseDate && jstDate(d) > baseDate ? '翌' : '';
-    return `${next}${p.h}:${pad(p.mi)}`;
+    return L.fmtHM(localParts(d), Boolean(baseDate && localDate(d) > baseDate));
   }
   function dateInfo(dateStr) {
-    const p = jstParts(atJst(dateStr, 720));
-    return { md: `${p.mo}/${p.d}`, mo: p.mo, d: p.d, wd: WD[p.wd], wdIdx: p.wd };
+    const t = new Date(Date.parse(`${dateStr}T12:00:00Z`));
+    const mo = t.getUTCMonth() + 1;
+    const d = t.getUTCDate();
+    const wdIdx = t.getUTCDay();
+    return { md: L.md(mo, d), mo, d, wd: L.wd[wdIdx], wdIdx };
   }
-  // セリフ用の時刻の言い方（夜中の2時、明け方の4時 …）
-  const hourWord = (h) => (h >= 18 ? `${h}時` : h <= 3 ? `夜中の${h}時` : `明け方の${h}時`);
-  const dirName = (az) => DIRS[Math.round((((az % 360) + 360) % 360) / 22.5) % 16];
-
-  function whenWord(offset, dateStr) {
-    if (offset === 0) return '今夜';
-    if (offset === 1) return '明日';
-    if (offset === 2) return 'あさって';
-    const i = dateInfo(dateStr);
-    return `${i.mo}月${i.d}日`;
-  }
-  function tabLabel(offset, dateStr) {
-    if (offset === 0) return '今夜';
-    if (offset === 1) return '明日の夜';
-    const i = dateInfo(dateStr);
-    return `${i.md}（${i.wd}）`;
-  }
+  const dirName = (az) => L.dirs[Math.round((((az % 360) + 360) % 360) / 22.5) % 16];
+  const whenWord = (offset, dateStr) => L.whenWord(offset, dateInfo(dateStr));
+  const tabLabel = (offset, dateStr) => L.tabLabel(offset, dateInfo(dateStr));
 
   /* ---------------------------------------------------------
    * データ取得
@@ -105,15 +119,16 @@
 
   const HOURLY_VARS = 'cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,precipitation,relative_humidity_2m,temperature_2m';
   function meteoURL(lats, lons, model) {
-    const p = new URLSearchParams({ latitude: lats, longitude: lons, hourly: HOURLY_VARS, timezone: 'Asia/Tokyo', past_days: '1', forecast_days: '8' });
+    const p = new URLSearchParams({ latitude: lats, longitude: lons, hourly: HOURLY_VARS, timezone: 'GMT', past_days: '1', forecast_days: '8' });
     if (model) p.set('models', model);
     return `https://api.open-meteo.com/v1/forecast?${p}`;
   }
   async function fetchMeteo(lats, lons) {
+    if (!L.weatherModel) return fetchJSON(meteoURL(lats, lons, null));
     try {
-      return await fetchJSON(meteoURL(lats, lons, 'jma_seamless'));
+      return await fetchJSON(meteoURL(lats, lons, L.weatherModel));
     } catch (e) {
-      console.warn('気象庁モデルの取得に失敗したので標準モデルで再試行します', e);
+      console.warn('指定のモデルの取得に失敗したので標準モデルで再試行します', e);
       return await fetchJSON(meteoURL(lats, lons, null));
     }
   }
@@ -162,14 +177,7 @@
     return Math.round(clamp(idx, 0, 100));
   }
   const levelOf = (idx) => (idx == null ? 0 : idx >= 80 ? 5 : idx >= 60 ? 4 : idx >= 40 ? 3 : idx >= 20 ? 2 : 1);
-  const LEVELS = {
-    0: { label: 'データなし', short: '—', stars: '' },
-    5: { label: '満天の星', short: '満天', stars: '★★★★★' },
-    4: { label: 'よく見える', short: 'よく見える', stars: '★★★★☆' },
-    3: { label: '雲の合間に見える', short: '雲の合間', stars: '★★★☆☆' },
-    2: { label: '見えにくい', short: '見えにくい', stars: '★★☆☆☆' },
-    1: { label: '見えない', short: '見えない', stars: '★☆☆☆☆' },
-  };
+  const LEVELS = L.levels;
   const lvColor = (lv) => (lv ? `var(--lv${lv})` : 'var(--lv1)');
 
   function bodyHorizon(body, date, obs) {
@@ -177,10 +185,10 @@
     return A.Horizon(date, obs, eq.ra, eq.dec, 'normal');
   }
 
-  function summarizeNight(dateStr, hourMap, obs) {
+  function summarizeNight(dateStr, hourMap, obs, tz = state.tz) {
     const hours = [];
     for (let h = 18; h <= 29; h++) {
-      const t = atJst(dateStr, h * 60);
+      const t = atLocal(dateStr, h * 60, tz);
       const w = hourMap ? hourMap.get(hourKey(t)) : null;
       const idx = hourIndex(w);
       const sunAlt = bodyHorizon('Sun', t, obs).altitude;
@@ -208,23 +216,16 @@
   /* ---------------------------------------------------------
    * 天体計算
    * --------------------------------------------------------- */
-  const MOON_NAMES = [
-    [0.8, '新月'], [2.0, '繊月'], [3.5, '三日月'], [6.2, '夕月'], [8.6, '上弦の月'], [10.6, '十日夜の月'],
-    [12.6, '十三夜月'], [13.8, '小望月'], [15.3, '満月'], [16.3, '十六夜'], [17.3, '立待月'], [18.3, '居待月'],
-    [19.3, '寝待月'], [20.6, '更待月'], [23.6, '下弦の月'], [27.0, '有明月'], [28.9, '晦日月'], [30, '新月'],
-  ];
-  const moonName = (age) => (MOON_NAMES.find(([lim]) => age < lim) || MOON_NAMES[0])[1];
-
   function nightSky(dateStr, obs) {
-    const noon = atJst(dateStr, 12 * 60);
+    const noon = atLocal(dateStr, 12 * 60);
     const T = (x) => (x ? x.date : null);
     const sunset = T(A.SearchRiseSet('Sun', obs, -1, noon, 1));
     const sunrise = T(A.SearchRiseSet('Sun', obs, +1, sunset || noon, 1));
-    const dusk = T(A.SearchAltitude('Sun', obs, -1, noon, 1, -6)) || atJst(dateStr, 18 * 60 + 30);
-    const dawn = T(A.SearchAltitude('Sun', obs, +1, dusk, 1, -6)) || atJst(dateStr, 29 * 60);
+    const dusk = T(A.SearchAltitude('Sun', obs, -1, noon, 1, -6)) || atLocal(dateStr, 18 * 60 + 30);
+    const dawn = T(A.SearchAltitude('Sun', obs, +1, dusk, 1, -6)) || atLocal(dateStr, 29 * 60);
     const astroDusk = T(A.SearchAltitude('Sun', obs, -1, noon, 1, -18));
     const astroDawn = T(A.SearchAltitude('Sun', obs, +1, astroDusk || dusk, 1, -18));
-    const at21 = atJst(dateStr, 21 * 60);
+    const at21 = atLocal(dateStr, 21 * 60);
 
     const phase = A.MoonPhase(at21);
     const moon = {
@@ -235,7 +236,7 @@
       set: T(A.SearchRiseSet('Moon', obs, -1, noon, 1)),
       upAtDusk: bodyHorizon('Moon', dusk, obs).altitude > 0,
     };
-    moon.name = moonName(moon.age);
+    moon.name = L.moonName(moon.age);
     let up = 0;
     let n = 0;
     for (let m = dusk.getTime(); m <= dawn.getTime(); m += 30 * 60000) {
@@ -258,16 +259,18 @@
     const vis = samples.filter((s) => s.alt > 5);
     const eqJ2000 = A.Equator(p.body, at21, obs, false, true);
     const con = A.Constellation(eqJ2000.ra, eqJ2000.dec);
-    const info = { ...p, mag: A.Illumination(p.body, at21).mag, constellation: window.CONSTELLATION_JA[con.symbol] || `${con.name}座`, visible: vis.length > 0 };
+    const info = { ...p, mag: A.Illumination(p.body, at21).mag, constellation: L.conName(con.symbol, con.name), visible: vis.length > 0 };
     if (!info.visible) return info;
     const best = vis.reduce((a, b) => (b.alt > a.alt ? b : a));
     const start = vis[0].t;
     const end = vis[vis.length - 1].t;
     const fromDusk = start - dusk < 20 * 60000;
     const toDawn = dawn - end < 20 * 60000;
-    const startH = jstParts(start).h;
+    const startH = localParts(start).h;
     const lateRise = startH >= 18 || startH < 2; // 夜中の2時より前に昇る
-    info.period = fromDusk && toDawn ? '一晩中' : fromDusk ? '宵の空' : toDawn ? (lateRise ? '夜半〜明け方' : '明け方の空') : '夜半';
+    // evening=宵の空 / allnight=一晩中 / midnight=夜半 / late=夜半〜明け方 / morning=明け方の空
+    info.period = fromDusk && toDawn ? 'allnight' : fromDusk ? 'evening' : toDawn ? (lateRise ? 'late' : 'morning') : 'midnight';
+    info.periodLabel = L.periods[info.period];
     Object.assign(info, { start, end, best, bestDir: dirName(best.az) });
     return info;
   }
@@ -290,7 +293,6 @@
     }
     return res.sort((a, b) => b.alt - a.alt);
   }
-  const posText = (alt, dir) => (alt > 72 ? '頭の真上あたり' : `${dir}の空・高さ${Math.round(alt)}°`);
 
   function upcomingShowers(fromDate, days) {
     const list = [];
@@ -304,6 +306,11 @@
     }
     return list.sort((a, b) => a.diff - b.diff);
   }
+
+  // 台詞の関数に渡す道具
+  const helpers = {
+    state, pad, esc, fmtHM, dateInfo, whenWord, localParts, atLocal, constellationsAt, upcomingShowers,
+  };
 
   /* ---------------------------------------------------------
    * 月の満ち欠けの絵
@@ -400,18 +407,17 @@
   const talkTokens = {};
   function speak(who, parts) {
     const bubble = $(`${who}-bubble`);
-    const fig = document.querySelector(`.portrait[data-char="${who === 'renko' ? 'renko' : 'maribel'}"]`);
-    const speaker = who === 'renko' ? '宇佐見蓮子' : 'マエリベリー・ハーン';
+    const char = who === 'renko' ? 'renko' : 'maribel';
+    const fig = document.querySelector(`.portrait[data-char="${char}"]`);
     const token = Symbol(who);
     talkTokens[who] = token;
-    bubble.innerHTML = `<span class="speaker">${speaker}</span>`;
+    bubble.innerHTML = `<span class="speaker">${L.names[char]}</span>`;
     const ps = parts.map((p) => {
       const el = document.createElement('p');
       if (p.cls) el.className = p.cls;
       bubble.appendChild(el);
       return el;
     });
-    const char = who === 'renko' ? 'renko' : 'maribel';
     if (REDUCE_MOTION) {
       parts.forEach((p, i) => { ps[i].textContent = p.text; });
       const last = [...parts].reverse().find((p) => p.expr);
@@ -442,9 +448,9 @@
   }
   function showWaiting(who, text, expr) {
     talkTokens[who] = Symbol('wait');
-    if (expr) setPortrait(who === 'renko' ? 'renko' : 'maribel', expr);
-    const speaker = who === 'renko' ? '宇佐見蓮子' : 'マエリベリー・ハーン';
-    $(`${who}-bubble`).innerHTML = `<span class="speaker">${speaker}</span><p class="lead">${esc(text)}<span class="caret"></span></p>`;
+    const char = who === 'renko' ? 'renko' : 'maribel';
+    if (expr) setPortrait(char, expr);
+    $(`${who}-bubble`).innerHTML = `<span class="speaker">${L.names[char]}</span><p class="lead">${esc(text)}<span class="caret"></span></p>`;
   }
 
   // 画面に入ったときにしゃべり始める
@@ -468,258 +474,11 @@
     talkObserver.observe(el);
   }
 
-  function renkoScript(sum, sky, offset) {
-    const when = whenWord(offset, sum.date);
-    const lead = { text: `${when}の星空は……`, cls: 'lead', speed: 70, pause: 700, expr: 'think' };
-    if (state.weatherStatus === 'error') {
-      return { expr: 'error', parts: [lead,
-        { expr: 'error', text: '……あれ、天気のデータが来ない。結界の向こうで回線でも切れたのかしら。' },
-        { text: '星と月の位置なら、メリーのほうで見られるはずよ。' }] };
-    }
-    if (!sum.hasData) {
-      return { expr: 'normal', parts: [lead, { expr: 'normal', text: '……そこまで先の雲は、さすがにまだ読めないわ。近くなったらまた聞いて。' }] };
-    }
-    const best = sum.best ? hourWord(sum.best.h) : '';
-    let expr = 'normal';
-    let verdict;
-    if (sum.rain) {
-      verdict = '……雨。星が出ないと、私の目もただの目よ。';
-      expr = 'rain';
-    } else if (sum.lv === 5) {
-      verdict = `……快晴。雲ひとつないわ。狙い目は${best}ごろ。`
-        + (offset === 0 ? 'メリー、今夜は寝かせないわよ。' : '月面ツアーは高過ぎるけど、こっちは自販機のコーヒー代で済むわ。');
-      expr = 'great';
-    } else if (sum.lv === 4) {
-      verdict = `……まあまあね。ときどき雲が流れるけど、${best}ごろは開けてるはず。`;
-      expr = 'good';
-    } else if (sum.lv === 3) {
-      verdict = `……半々ね。雲と星が。${best}ごろの晴れ間に賭けるしかないわ。`;
-    } else if (sum.lv === 2) {
-      verdict = `……雲が多いわね。${best}ごろに少し切れるかもしれない、くらい。`;
-      expr = 'cloudy';
-    } else {
-      verdict = '……曇り。星が見えないと、私の時計は止まったままよ。';
-      expr = 'cloudy';
-    }
-    const parts = [lead, { expr, text: verdict }];
-
-    // 狙い目の時刻を、その土地の「本当の時刻」に直すのが蓮子のくせ（日本標準時は明石＝東経135度が基準）
-    if (sum.best && !sum.rain && sum.lv >= 2) {
-      const diffMin = Math.round((state.loc.lon - 135) * 4);
-      if (Math.abs(diffMin) >= 2) {
-        const real = jstParts(new Date(sum.best.t.getTime() - diffMin * 60000));
-        const place = state.loc.id === 'here' ? 'ここ' : state.loc.name;
-        parts.push({ text: `厳密には、${place}の本当の${sum.best.h}時は${real.h}時${pad(real.mi)}分。明石より${diffMin > 0 ? '東' : '西'}だから。……まあ、私の目が読めるのは日本標準時だけで、それ以外は能力外なんだけど。` });
-      }
-    }
-
-    // 月明かり・気象庁の予報・寒さの話を、話題ごとに段落を分けて続ける
-    const m = sky.moon;
-    if (sum.lv >= 3 && !sum.rain) {
-      const setInNight = m.set && m.set > sky.dusk && m.set < sky.dawn;
-      const riseInNight = m.rise && m.rise > sky.dusk && m.rise < sky.dawn;
-      let ml = '';
-      if (m.illum >= 0.75 && m.upFrac > 0.4) ml = 'ただ、月が明るいから暗い星は諦めて。';
-      else if (m.upFrac < 0.15 || m.illum < 0.15) ml = '月も出てないから、暗い星まで拾えるはずよ。';
-      else if (setInNight && m.illum > 0.3) ml = `月が${fmtHM(m.set, sum.date)}に沈むまでは我慢ね。`;
-      else if (riseInNight && m.illum > 0.3) ml = `${fmtHM(m.rise, sum.date)}に月が昇ってくるから、それまでが勝負。`;
-      if (ml) parts.push({ text: ml });
-    }
-    const jmaText = state.jma?.text?.[sum.date];
-    if (jmaText) parts.push({ text: `気象庁は「${jmaText}」だって。` });
-    if (sum.tmin != null && !sum.rain && sum.lv >= 2) {
-      if (sum.tmin <= 3) parts.push({ text: `${sum.tmin}℃まで下がるわよ。着込んできて。` });
-      else if (sum.tmin <= 10) parts.push({ text: `${sum.tmin}℃くらい。上着は要るわね。` });
-    }
-    return { expr, parts };
-  }
-
-  function maryScript(sum, sky, offset) {
-    const when = whenWord(offset, sky.date);
-    const parts = [{ text: `蓮子、${when}はこんな星が見れるはずよ！`, cls: 'lead', speed: 45, pause: 400, expr: 'happy' }];
-    const PLANET_NOTE = {
-      土星: '輪っかは肉眼じゃ見えないけどね。',
-      木星: '明るいから、すぐわかるわ。',
-      金星: '眩しいくらいよ。',
-      火星: '赤っぽいから、すぐわかるわ。',
-      水星: '低いから、見えたら運がいいほう。',
-    };
-
-    // 惑星 → 月 → 星座 → 流星群 → （曇りなら）ひとこと、の順に話す
-    const vis = sky.planets.filter((p) => p.visible).sort((a, b) => a.mag - b.mag);
-    const evening = vis.filter((p) => p.period === '宵の空' || p.period === '一晩中');
-    const late = vis.filter((p) => p.period === '夜半' || p.period === '夜半〜明け方');
-    const morning = vis.filter((p) => p.period === '明け方の空');
-    if (evening.length) {
-      const p = evening[0];
-      let s = p.period === '宵の空'
-        ? `日が暮れたら${p.bestDir}の空に${p.name}。${PLANET_NOTE[p.name] || ''}`
-        : `${p.name}は一晩中出てるわ。${fmtHM(p.best.t, sky.date)}ごろ、${p.bestDir}の空でいちばん高くなる。`;
-      const others = evening.slice(1).map((x) => x.name);
-      if (others.length) s += `${others.join('と')}もいるわよ。`;
-      parts.push({ text: s });
-    }
-    if (late.length) {
-      const names = late.map((p) => p.name).join('と');
-      const start = fmtHM(late[0].start, sky.date);
-      parts.push({ text: evening.length ? `夜が更けたら${names}も昇ってくる。${start}ごろから。` : `${start}ごろになると、${names}が昇ってくるわ。` });
-    }
-    if (morning.length) {
-      const names = morning.map((p) => p.name).join('と');
-      parts.push({ text: evening.length || late.length
-        ? `明け方には${names}。早起きできたらの話だけど。`
-        : `惑星なら明け方ね。${morning[0].bestDir}の空に${names}。早起きできたらの話だけど。` });
-    }
-
-    const m = sky.moon;
-    const setInNight = m.set && m.set > sky.dusk && m.set < sky.dawn;
-    const riseInNight = m.rise && m.rise > sky.dusk && m.rise < sky.dawn;
-    let ms = `月は${m.name}。`;
-    if (m.upFrac < 0.05) ms += '夜は沈んでるから、邪魔はされないわ。';
-    else if (m.upFrac > 0.9) ms += '一晩中出てるわ。';
-    else if (m.upAtDusk && setInNight) ms += `${fmtHM(m.set, sky.date)}に沈む。`;
-    else if (riseInNight) ms += `${fmtHM(m.rise, sky.date)}に昇ってくる。`;
-    if (m.illum > 0.9) ms += '……池に映った月なら、向こう側も見えるんだけど。今のは聞かなかったことにして。';
-    parts.push({ text: ms });
-
-    const c = constellationsAt(atJst(sky.date, 21 * 60), state.obs).find((x) => x.size >= 3 && x.name !== 'こぐま座');
-    if (c) parts.push({ text: `21時ごろは${c.name}が${c.alt > 72 ? '頭の真上' : `${c.dir}の空`}。${c.tip}` });
-
-    let expr = 'happy';
-    const shower = upcomingShowers(sky.date, 10)[0];
-    if (shower && (shower.diff === 0 || shower.diff === 1)) {
-      parts.push({ expr: 'excited', text: `しかも${shower.name}の極大の夜よ。` });
-      expr = 'excited';
-    } else if (shower && shower.diff > 1) {
-      parts.push({ text: `${dateInfo(shower.date).md}は${shower.name}の極大。忘れないでね。` });
-    }
-
-    if (state.weatherStatus === 'ok' && sum.hasData && (sum.rain || sum.lv <= 2)) {
-      parts.push({ expr: 'gentle', text: '雲で見えなくても、星はそこにあるわよ。……私には、ちょっと見えちゃってるけど。' });
-      expr = 'gentle';
-    }
-    return { expr, parts };
-  }
-
-  /* ---------------------------------------------------------
-   * 旧版の台詞（比較用に残しているもの。?tone=classic で表示）
-   *  原作寄りに書き直す前の、丁寧でたっぷり喋るバージョン
-   * --------------------------------------------------------- */
-  function renkoScriptClassic(sum, sky, offset) {
-    const when = whenWord(offset, sum.date);
-    const lead = { text: `${when}の星空は……`, cls: 'lead', speed: 70, pause: 700, expr: 'think' };
-    if (state.weatherStatus === 'error') {
-      return { expr: 'error', parts: [lead, { expr: 'error', text: '……あれ？ 天気のデータが届かないわ。結界の向こうで通信が途切れたのかしら。星と月の位置なら、メリーが案内してくれるはずよ。' }] };
-    }
-    if (!sum.hasData) {
-      return { expr: 'normal', parts: [lead, { expr: 'normal', text: '……そこまで先の雲は、さすがにまだ読めないわね。もう少し近くなったらまた聞いて。' }] };
-    }
-    const best = sum.best ? hourWord(sum.best.h) : '';
-    const lines = [];
-    let expr = 'normal';
-    if (sum.rain) {
-      lines.push(`……雨が降りそう。${offset === 0 ? '今夜' : 'その日'}は部室で星図を広げましょうか。`);
-      expr = 'rain';
-    } else if (sum.lv === 5) {
-      lines.push(`……満天の星ね！ 雲はほとんどなし。いちばんの狙い目は${best}ごろよ。`);
-      lines.push(offset === 0 ? 'メリー、今夜は徹夜で観測しましょう。' : 'メリー、今のうちに観測の準備をしておいて。');
-      expr = 'great';
-    } else if (sum.lv === 4) {
-      lines.push(`……なかなか良さそうよ。ときどき雲が流れるけど、${best}ごろがいちばん見やすいわ。`);
-      expr = 'good';
-    } else if (sum.lv === 3) {
-      lines.push(`……雲と星が半々ってところね。${best}ごろの晴れ間に賭けてみましょう。`);
-    } else if (sum.lv === 2) {
-      lines.push(`……うーん、雲が多いわね。${best}ごろに少し切れ間が出るかもしれないけど。`);
-      expr = 'cloudy';
-    } else {
-      lines.push('……残念、ほとんど曇りね。星が見えないと、私の時計も止まったままだわ。');
-      expr = 'cloudy';
-    }
-    const parts = [lead, { expr, text: lines.join('') }];
-    const m = sky.moon;
-    if (sum.lv >= 3 && !sum.rain) {
-      const setInNight = m.set && m.set > sky.dusk && m.set < sky.dawn;
-      const riseInNight = m.rise && m.rise > sky.dusk && m.rise < sky.dawn;
-      let ml = '';
-      if (m.illum >= 0.75 && m.upFrac > 0.4) ml = `ただ、${m.name}が明るいから、暗い星は見えにくいかも。`;
-      else if (m.upFrac < 0.15 || m.illum < 0.15) ml = '月明かりの邪魔もないから、暗い星までよく見えるはずよ。';
-      else if (setInNight && m.illum > 0.3) ml = `月が${fmtHM(m.set, sum.date)}に沈んだあとが勝負ね。`;
-      else if (riseInNight && m.illum > 0.3) ml = `${fmtHM(m.rise, sum.date)}に月が昇ってくるまでが勝負ね。`;
-      if (ml) parts.push({ text: ml });
-    }
-    const jmaText = state.jma?.text?.[sum.date];
-    if (jmaText) parts.push({ text: `気象庁の予報だと「${jmaText}」だって。` });
-    if (sum.tmin != null && !sum.rain && sum.lv >= 2) {
-      if (sum.tmin <= 3) parts.push({ text: `夜は${sum.tmin}℃くらいまで冷えるから、しっかり着込んできてね。` });
-      else if (sum.tmin <= 10) parts.push({ text: `${sum.tmin}℃くらいまで下がるから、上着を忘れずに。` });
-    }
-    return { expr, parts };
-  }
-
-  function maryScriptClassic(sum, sky, offset) {
-    const when = whenWord(offset, sky.date);
-    const parts = [{ text: `蓮子、${when}はこんな星が見れるはずよ！`, cls: 'lead', speed: 45, pause: 400, expr: 'happy' }];
-    const magWord = (mag) => (mag <= -3 ? 'ひときわ明るく' : mag <= -1.5 ? 'とても明るく' : mag <= 0.5 ? '明るく' : '');
-    const vis = sky.planets.filter((p) => p.visible).sort((a, b) => a.mag - b.mag);
-    const evening = vis.filter((p) => p.period === '宵の空' || p.period === '一晩中');
-    const late = vis.filter((p) => p.period === '夜半' || p.period === '夜半〜明け方');
-    const morning = vis.filter((p) => p.period === '明け方の空');
-    if (evening.length) {
-      const p = evening[0];
-      const mw = magWord(p.mag);
-      let s = p.period === '宵の空'
-        ? `日が暮れたら${p.bestDir}の空を見て。${p.constellation}のあたりで、${p.name}が${mw}輝いているわ。`
-        : `${p.name}が一晩中見えるわ。${fmtHM(p.best.t, sky.date)}ごろ、${p.bestDir}の空で${mw}輝いているはずよ（${p.constellation}）。`;
-      const others = evening.slice(1).map((x) => x.name);
-      if (others.length) s += `${others.join('、')}も見えるわね。`;
-      parts.push({ text: s });
-    }
-    if (late.length) {
-      const names = late.map((p) => p.name).join('と');
-      parts.push({ text: evening.length
-        ? `夜が更けると、${names}も昇ってくるわ。${fmtHM(late[0].start, sky.date)}ごろからね。`
-        : `${fmtHM(late[0].start, sky.date)}ごろになると、${names}が昇ってくるわ（${late[0].constellation}）。` });
-    }
-    if (morning.length) {
-      const names = morning.map((p) => (p.mag <= -3 ? `ひときわ明るい${p.name}` : p.name)).join('、');
-      parts.push({ text: evening.length || late.length
-        ? `早起きするなら、明け方の空に${names}も並ぶわよ。`
-        : `惑星を見るなら明け方ね。${morning[0].bestDir}の空に${names}が見えるわ。` });
-    }
-    const m = sky.moon;
-    const setInNight = m.set && m.set > sky.dusk && m.set < sky.dawn;
-    const riseInNight = m.rise && m.rise > sky.dusk && m.rise < sky.dawn;
-    let ms = `月は${m.name}（月齢${m.age.toFixed(1)}）。`;
-    if (m.upFrac < 0.05) ms += '夜のあいだは沈んでいるから、星を見るには絶好ね。';
-    else if (m.upFrac > 0.9) ms += '一晩中、空にいるわね。';
-    else if (m.upAtDusk && setInNight) ms += `${fmtHM(m.set, sky.date)}に沈むわ。`;
-    else if (riseInNight) ms += `${fmtHM(m.rise, sky.date)}に昇ってくるわ。`;
-    parts.push({ text: ms });
-    const c = constellationsAt(atJst(sky.date, 21 * 60), state.obs).find((x) => x.size >= 3 && x.name !== 'こぐま座');
-    if (c) parts.push({ text: `21時ごろは${c.name}が${c.alt > 72 ? '頭の真上あたり' : `${c.dir}の空`}に見えるわ。${c.tip}` });
-    let expr = 'happy';
-    const shower = upcomingShowers(sky.date, 10)[0];
-    if (shower && (shower.diff === 0 || shower.diff === 1)) {
-      parts.push({ expr: 'excited', text: `しかも${shower.name}の極大の夜よ！ 流れ星、いくつ数えられるかしら。` });
-      expr = 'excited';
-    } else if (shower && shower.diff > 1) {
-      parts.push({ text: `それと、${dateInfo(shower.date).md}は${shower.name}の極大よ。覚えておいてね。` });
-    }
-    if (state.weatherStatus === 'ok' && sum.hasData && (sum.rain || sum.lv <= 2)) {
-      parts.push({ expr: 'gentle', text: '……雲で隠れちゃっても、星はちゃんとそこにあるのよ。私の目には、ちょっとだけ見えちゃうけど。' });
-      expr = 'gentle';
-    }
-    return { expr, parts };
-  }
-
   /* ---------------------------------------------------------
    * 台詞のバージョン切り替え（URL の ?tone= で指定。リンクを共有して見比べられる）
+   *  台詞そのものは言語ファイル（L.tones）にある
    * --------------------------------------------------------- */
-  const TONES = {
-    hifuu: { label: '原作寄り', renko: renkoScript, mary: maryScript, chat: true },
-    classic: { label: '旧版', renko: renkoScriptClassic, mary: maryScriptClassic, chat: false },
-  };
+  const TONES = L.tones;
   function toneFromURL() {
     const t = new URLSearchParams(location.search).get('tone');
     return t && TONES[t] ? t : 'hifuu';
@@ -738,9 +497,10 @@
 
   /* ---------------------------------------------------------
    * 部室の雑談（二人の掛け合い）
-   *  1日に1話（js/chats.js）。朝6時に次の話に替わる。台詞は1行ずつ表示
+   *  1日に1話（js/chats.js）。部室は京都なので、日本時間の朝6時に次の話に替わる
    * --------------------------------------------------------- */
-  const CHAT_SWITCH_HOUR = 6; // 日本時間の朝6時に次の話に替わる（サイトの「今夜」の区切りと同じ）
+  const CHAT_TZ = 'Asia/Tokyo';
+  const CHAT_SWITCH_HOUR = 6; // 朝6時に次の話に替わる（サイトの「今夜」の区切りと同じ）
   const chat = { day: null, token: null, seen: false, pending: false, fast: false, wake: null };
   const gcd = (a, b) => (b ? gcd(b, a % b) : a);
 
@@ -748,7 +508,7 @@
   function todaysChat(now = new Date()) {
     const list = window.CLUB_CHATS || [];
     if (!list.length) return null;
-    const day = Math.floor((now.getTime() + JST_MS - CHAT_SWITCH_HOUR * 3600e3) / 86400000);
+    const day = Math.floor((now.getTime() + tzOffset(now.getTime(), CHAT_TZ) - CHAT_SWITCH_HOUR * 3600e3) / 86400000);
     let step = 5; // 話の数と互いに素な数ずつ進めて、順番どおりに並ばないようにしつつ全話を一巡させる
     while (gcd(step, list.length) !== 1) step++;
     return { day, ep: list[(((day * step) % list.length) + list.length) % list.length] };
@@ -762,7 +522,7 @@
   function chatLineEl(who, expr, text) {
     const div = document.createElement('div');
     div.className = `chat-line ${who === 'renko' ? 'renko' : 'mary'}`;
-    const name = who === 'renko' ? '蓮子' : 'メリー';
+    const name = L.short[who === 'renko' ? 'renko' : 'maribel'];
     div.innerHTML = `<span class="chat-face"><img src="img/face/${who}-${expr}.png" alt=""></span><p class="chat-msg"><span class="chat-name">${name}</span>${esc(text)}</p>`;
     const img = div.querySelector('img');
     img.addEventListener('error', () => { if (!img.src.endsWith('-smile.png')) img.src = `img/face/${who}-smile.png`; }, { once: true });
@@ -777,10 +537,10 @@
     chat.day = t.day;
     chat.fast = REDUCE_MOTION;
     const now = new Date();
-    const p = jstParts(now);
-    const label = dateInfo(jstDate(new Date(now.getTime() - CHAT_SWITCH_HOUR * 3600e3)));
-    $('chat-topic').textContent = `${label.md}（${label.wd}）の話題：${t.ep.title}`;
-    $('chat-count').textContent = 'タップで最後まで表示';
+    const p = localParts(now, CHAT_TZ);
+    const label = dateInfo(localDate(new Date(now.getTime() - CHAT_SWITCH_HOUR * 3600e3), CHAT_TZ));
+    $('chat-topic').textContent = L.ui.chatTopic(label, t.ep.title);
+    $('chat-count').textContent = L.ui.chatTapAll;
     const ctx = { night: bodyHorizon('Sun', now, state.obs).altitude < -6, h: p.h, mm: pad(p.mi), ss: pad(p.s) };
     const lines = typeof t.ep.lines === 'function' ? t.ep.lines(ctx) : t.ep.lines;
     const log = $('chat-log');
@@ -791,7 +551,7 @@
         if (chat.token !== token) return;
         log.appendChild(chatLineEl(...lines[i]));
       }
-      $('chat-count').textContent = `次の雑談は、${p.h < CHAT_SWITCH_HOUR ? '今朝' : '明日の朝'}${CHAT_SWITCH_HOUR}時に`;
+      $('chat-count').textContent = L.ui.chatNext(p.h < CHAT_SWITCH_HOUR, CHAT_SWITCH_HOUR);
     })();
   }
 
@@ -807,7 +567,7 @@
     chat.token = Symbol('wait');
     $('chat-topic').textContent = '';
     $('chat-count').textContent = '';
-    $('chat-log').innerHTML = '<p class="loading">二人が部室に来るのを待っています…</p>';
+    $('chat-log').innerHTML = `<p class="loading">${L.ui.chatWaiting}</p>`;
   }
 
   /* ---------------------------------------------------------
@@ -835,37 +595,38 @@
     const sum = state.summaries[state.offset];
     const sky = state.skies[state.offset];
     const info = dateInfo(sum.date);
-    $('index-date').textContent = `${info.md}（${info.wd}）の夜 ・ ${state.loc.name}`;
+    $('index-date').textContent = L.ui.indexDate(info, state.loc.name);
 
     const ring = $('index-ring');
     const facts = $('index-facts');
     if (state.weatherStatus === 'loading') {
       $('index-num').textContent = '--';
-      $('index-label').textContent = '雲の様子を調べています…';
+      $('index-label').textContent = L.ui.checkingClouds;
       $('index-stars').textContent = '';
       ring.style.setProperty('--val', 0);
       facts.innerHTML = '';
-      $('hourly').innerHTML = '<p class="loading">読み込み中…</p>';
+      $('hourly').innerHTML = `<p class="loading">${L.ui.loading}</p>`;
     } else if (state.weatherStatus === 'error' || !sum.hasData) {
       $('index-num').textContent = '--';
-      $('index-label').textContent = state.weatherStatus === 'error' ? '天気データを取得できませんでした' : 'まだ予報がありません';
+      $('index-label').textContent = state.weatherStatus === 'error' ? L.ui.weatherError : L.ui.noForecast;
       $('index-stars').textContent = '';
       ring.style.setProperty('--val', 0);
-      facts.innerHTML = `<dt>月</dt><dd>${esc(sky.moon.name)}</dd>`;
-      $('hourly').innerHTML = `<p class="${state.weatherStatus === 'error' ? 'error-note' : 'empty'}">${state.weatherStatus === 'error' ? '通信に失敗しました。時間をおいて再読み込みしてください。' : 'この日の時間別予報はまだありません。'}</p>`;
+      facts.innerHTML = `<dt>${L.ui.moon}</dt><dd>${esc(sky.moon.name)}</dd>`;
+      $('hourly').innerHTML = `<p class="${state.weatherStatus === 'error' ? 'error-note' : 'empty'}">${state.weatherStatus === 'error' ? L.ui.fetchFailed : L.ui.noHourly}</p>`;
     } else {
-      const L = LEVELS[sum.lv];
+      const lvl = LEVELS[sum.lv];
       $('index-num').textContent = sum.idx;
-      $('index-label').textContent = L.label;
-      $('index-stars').textContent = L.stars;
+      $('index-label').textContent = lvl.label;
+      $('index-stars').textContent = lvl.stars;
       ring.style.setProperty('--val', sum.idx);
       ring.style.setProperty('--col', lvColor(sum.lv));
       const m = sky.moon;
-      const moonLight = m.upFrac < 0.1 || m.illum < 0.15 ? 'なし' : m.illum >= 0.75 ? '明るい' : m.illum >= 0.4 ? 'ふつう' : '弱い';
+      const ML = L.ui.moonLight;
+      const moonLight = m.upFrac < 0.1 || m.illum < 0.15 ? ML.none : m.illum >= 0.75 ? ML.bright : m.illum >= 0.4 ? ML.normal : ML.weak;
       facts.innerHTML = `
-        <dt>狙い目</dt><dd>${sum.best.morning ? '翌' : ''}${sum.best.h}時ごろ</dd>
-        <dt>雲の量</dt><dd>${sum.avgCloud}%</dd>
-        <dt>月明かり</dt><dd>${moonLight}</dd>`;
+        <dt>${L.ui.factBest}</dt><dd>${L.ui.bestHour(sum.best)}</dd>
+        <dt>${L.ui.factCloud}</dt><dd>${sum.avgCloud}%</dd>
+        <dt>${L.ui.factMoon}</dt><dd>${moonLight}</dd>`;
       renderHourly(sum);
     }
     renderJmaLine(sum.date);
@@ -874,14 +635,13 @@
   function renderHourly(sum) {
     const box = $('hourly');
     box.innerHTML = sum.hours.map((x) => {
-      if (x.idx == null) return `<div class="hour"><span>${x.h}時</span><div class="bar-wrap"></div><span class="val">--</span><span class="icon"></span></div>`;
+      if (x.idx == null) return `<div class="hour"><span>${L.ui.hourLabel(x.h)}</span><div class="bar-wrap"></div><span class="val">--</span><span class="icon"></span></div>`;
       const icon = x.w.precip >= 0.1 ? '☂' : x.lv >= 4 ? '★' : x.lv === 3 ? '☆' : '☁';
       const cls = ['hour'];
       if (!x.dark) cls.push(x.morning ? 'dawn' : 'dusk');
       if (sum.best && x.t === sum.best.t) cls.push('best');
-      const title = `${x.h}時 星空指数${x.idx} 雲量${x.w.cc}%${x.w.precip ? ` 降水${x.w.precip}mm` : ''}`;
-      return `<div class="${cls.join(' ')}" title="${title}">
-        <span>${x.h}時</span>
+      return `<div class="${cls.join(' ')}" title="${esc(L.ui.hourTitle(x))}">
+        <span>${L.ui.hourLabel(x.h)}</span>
         <div class="bar-wrap"><div class="bar" style="height:${Math.max(4, x.idx)}%;background:${lvColor(x.lv)}"></div></div>
         <span class="val">${x.idx}</span>
         <span class="icon" aria-hidden="true">${icon}</span>
@@ -891,15 +651,19 @@
 
   function renderJmaLine(date) {
     const el = $('jma-line');
-    const near = state.loc.jmaNear ? `（最寄りの予報区: ${esc(state.loc.jmaNear)}）` : '';
-    if (state.jmaStatus === 'loading') { el.textContent = '気象庁の予報を確認中…'; return; }
-    if (state.jmaStatus === 'error' || !state.jma) { el.textContent = '気象庁の予報文は取得できませんでした。'; return; }
+    if (!el) return;
+    el.hidden = !L.jma || state.jmaStatus === 'off';
+    if (el.hidden) return;
+    const U = L.ui;
+    const near = state.loc.jmaNear ? esc(U.jmaNear(state.loc.jmaNear)) : '';
+    if (state.jmaStatus === 'loading') { el.textContent = U.jmaLoading; return; }
+    if (state.jmaStatus === 'error' || !state.jma) { el.textContent = U.jmaError; return; }
     const text = state.jma.text[date];
-    if (!text) { el.innerHTML = `気象庁の予報文は3日先までです。${near}`; return; }
+    if (!text) { el.innerHTML = U.jmaTooFar(near); return; }
     const p1 = state.jma.pops[`${date}T18:00:00+09:00`];
     const p2 = state.jma.pops[`${addDays(date, 1)}T00:00:00+09:00`];
-    const pops = [p1 != null ? `18-24時 ${esc(p1)}%` : null, p2 != null ? `0-6時 ${esc(p2)}%` : null].filter(Boolean).join(' / ');
-    el.innerHTML = `気象庁 ${esc(state.jma.office)}（${esc(state.jma.area)}）${near}: <strong>${esc(text)}</strong>${pops ? `<br>降水確率 ${pops}` : ''}`;
+    const pops = U.jmaPops(p1 != null ? esc(p1) : null, p2 != null ? esc(p2) : null);
+    el.innerHTML = U.jmaLine(esc(state.jma.office), esc(state.jma.area), near, esc(text), pops);
   }
 
   function renderWeekly() {
@@ -914,7 +678,7 @@
       b.style.setProperty('--lvc', lvColor(lv));
       b.setAttribute('aria-pressed', String(i === state.offset));
       b.innerHTML = `
-        <span class="d-date">${i === 0 ? '今夜' : info.md}</span>
+        <span class="d-date">${i === 0 ? L.ui.tonight : info.md}</span>
         <span class="d-wd ${info.wdIdx === 0 ? 'sun' : info.wdIdx === 6 ? 'sat' : ''}">${info.wd}</span>
         ${moonSVG(state.skies[i].moon.phase, 40)}
         <span class="d-val">${lv ? sum.idx : '--'}</span>
@@ -927,13 +691,13 @@
   function renderNation() {
     const box = $('nation');
     $('nation-when').textContent = tabLabel(state.offset, addDays(state.base, state.offset));
-    if (!state.nation) { box.innerHTML = '<p class="loading">読み込み中…</p>'; return; }
-    if (state.nation === 'error') { box.innerHTML = '<p class="error-note">全国のデータを取得できませんでした。</p>'; return; }
+    if (!state.nation) { box.innerHTML = `<p class="loading">${L.ui.loading}</p>`; return; }
+    if (state.nation === 'error') { box.innerHTML = `<p class="error-note">${L.ui.nationError}</p>`; return; }
     const date = addDays(state.base, state.offset);
     box.innerHTML = '';
     window.LOCATIONS.forEach((loc, i) => {
       const obs = new A.Observer(loc.lat, loc.lon, 0);
-      const sum = summarizeNight(date, state.nation[i], obs);
+      const sum = summarizeNight(date, state.nation[i], obs, loc.tz || L.tz);
       const b = document.createElement('button');
       b.type = 'button';
       b.className = `city${state.loc.id === loc.id ? ' current' : ''}`;
@@ -951,45 +715,45 @@
     const sky = state.skies[state.offset];
     const m = sky.moon;
     const d = sky.date;
-    const riseText = m.upAtDusk ? '夕方にはもう空に' : fmtHM(m.rise, d);
+    const U = L.ui;
+    const riseText = m.upAtDusk ? U.moonUpAtDusk : fmtHM(m.rise, d);
     $('moon-card').innerHTML = `
-      <h3>月</h3>
+      <h3>${U.moon}</h3>
       <div class="moon-wrap">
         ${moonSVG(m.phase)}
         <div>
           <p class="moon-name">${m.name}</p>
           <dl class="facts">
-            <dt>月齢</dt><dd>${m.age.toFixed(1)}</dd>
-            <dt>月の出</dt><dd>${riseText}</dd>
-            <dt>月の入</dt><dd>${fmtHM(m.set, d)}</dd>
+            <dt>${U.moonAge}</dt><dd>${m.age.toFixed(1)}</dd>
+            <dt>${U.moonRise}</dt><dd>${riseText}</dd>
+            <dt>${U.moonSet}</dt><dd>${fmtHM(m.set, d)}</dd>
           </dl>
         </div>
       </div>`;
     $('sun-card').innerHTML = `
-      <h3>夜の時間</h3>
+      <h3>${U.nightTimes}</h3>
       <dl class="facts">
-        <dt>日の入</dt><dd>${fmtHM(sky.sunset, d)}</dd>
-        <dt>星が見えはじめる</dt><dd>${fmtHM(sky.dusk, d)}</dd>
-        <dt>空が白みはじめる</dt><dd>${fmtHM(sky.astroDawn, d)}</dd>
-        <dt>日の出</dt><dd>${fmtHM(sky.sunrise, d)}</dd>
+        <dt>${U.sunset}</dt><dd>${fmtHM(sky.sunset, d)}</dd>
+        <dt>${U.starsOut}</dt><dd>${fmtHM(sky.dusk, d)}</dd>
+        <dt>${U.skyBrightens}</dt><dd>${fmtHM(sky.astroDawn, d)}</dd>
+        <dt>${U.sunrise}</dt><dd>${fmtHM(sky.sunrise, d)}</dd>
       </dl>`;
     renderPlanets(sky);
 
     const showers = upcomingShowers(state.base, 60);
     $('meteors').innerHTML = showers.length ? showers.map((s) => {
-      const moonIllum = A.Illumination('Moon', atJst(s.date, 2 * 60)).phase_fraction;
-      const cond = moonIllum < 0.35 ? '◎ 月明かりの影響なし' : moonIllum < 0.7 ? '○ 月明かりがやや邪魔' : '△ 月明かりが強い';
-      const days = s.diff < 0 ? '<span>昨夜</span>' : s.diff === 0 ? '<span>今夜</span>' : `${s.diff}<small>日後</small>`;
+      const moonIllum = A.Illumination('Moon', atLocal(s.date, 2 * 60)).phase_fraction;
+      const cond = U.meteorMoon[moonIllum < 0.35 ? 0 : moonIllum < 0.7 ? 1 : 2];
       return `<div class="meteor${s.diff <= 10 ? ' soon' : ''}">
-        <div class="m-days">${days}</div>
-        <div><div class="m-name">${s.name}</div><div class="m-sub">${dateInfo(s.date).md} ごろ極大 ・ 放射点 ${s.radiant} ・ 1時間に最大${s.zhr}個ほど</div></div>
+        <div class="m-days">${U.meteorDays(s.diff)}</div>
+        <div><div class="m-name">${s.name}</div><div class="m-sub">${U.meteorSub(dateInfo(s.date).md, s.radiant, s.zhr)}</div></div>
         <div class="m-moon">${cond}</div>
       </div>`;
-    }).join('') : '<p class="empty">60日以内に大きな流星群はありません。</p>';
+    }).join('') : `<p class="empty">${U.noMeteors}</p>`;
   }
 
   function chartDate() {
-    return atJst(state.skies[state.offset].date, SLIDER_START_MIN + state.step * SLIDER_STEP_MIN);
+    return atLocal(state.skies[state.offset].date, SLIDER_START_MIN + state.step * SLIDER_STEP_MIN);
   }
 
   function renderChartTime() {
@@ -997,30 +761,34 @@
     const date = chartDate();
     const label = fmtHM(date, sky.date);
     const info = dateInfo(sky.date);
-    $('chart-when').textContent = `${info.md}（${info.wd}） ${label} の空`;
-    $('const-when').textContent = `${label}ごろ`;
+    $('chart-when').textContent = L.ui.chartWhen(info, label);
+    $('const-when').textContent = L.ui.constWhen(label);
     renderChart(date);
     const consts = constellationsAt(date, state.obs).slice(0, 6);
     $('consts').innerHTML = consts.length ? consts.map((c) => `
       <div class="const">
-        <div class="k-head"><span class="k-name">${c.name}</span><span class="k-pos">${posText(c.alt, c.dir)}</span></div>
+        <div class="k-head"><span class="k-name">${c.name}</span><span class="k-pos">${L.posText(c.alt, c.dir)}</span></div>
         <p>${c.tip}</p>
-      </div>`).join('') : '<p class="empty">この時刻は明るい星座が低い位置にあります。</p>';
+      </div>`).join('') : `<p class="empty">${L.ui.noConsts}</p>`;
   }
 
   // 見える惑星だけカードにして、見えないものは1行にまとめる
   function renderPlanets(sky) {
-    const order = { 宵の空: 0, 一晩中: 1, 夜半: 2, '夜半〜明け方': 3, 明け方の空: 4 };
+    const U = L.ui;
+    const order = { evening: 0, allnight: 1, midnight: 2, late: 3, morning: 4 };
     const vis = sky.planets.filter((p) => p.visible).sort((a, b) => order[a.period] - order[b.period] || a.mag - b.mag);
     const off = sky.planets.filter((p) => !p.visible).map((p) => p.name);
     const cards = vis.map((p) => `<div class="planet">
-        <div class="p-head"><span class="p-dot" style="background:${p.color};color:${p.color}"></span><span class="p-name">${p.name}</span><span class="p-mag">${p.mag.toFixed(1)}等・${p.constellation}</span></div>
-        <p><strong>${p.period}</strong> ${fmtHM(p.start, sky.date)}〜${fmtHM(p.end, sky.date)}</p>
-        <p>${fmtHM(p.best.t, sky.date)}ごろ ${p.bestDir}の空・高さ${Math.round(p.best.alt)}°</p>
+        <div class="p-head"><span class="p-dot" style="background:${p.color};color:${p.color}"></span><span class="p-name">${p.name}</span><span class="p-mag">${U.planetMag(p.mag, p.constellation)}</span></div>
+        <p>${U.planetSpan(p.periodLabel, fmtHM(p.start, sky.date), fmtHM(p.end, sky.date))}</p>
+        <p>${U.planetBest(fmtHM(p.best.t, sky.date), p.bestDir, Math.round(p.best.alt))}</p>
       </div>`).join('');
-    $('planets').innerHTML = (cards || '<p class="empty">この夜に見やすい惑星はありません。</p>')
-      + (off.length ? `<p class="planet-off">この夜は見えない: ${off.join('、')}（太陽に近い位置）</p>` : '');
+    $('planets').innerHTML = (cards || `<p class="empty">${U.noPlanets}</p>`)
+      + (off.length ? `<p class="planet-off">${U.planetsOff(off)}</p>` : '');
   }
+
+  // ラベルの幅の見積もり（全角は1文字ぶん、半角はおよそ0.56文字ぶん）
+  const textWidth = (text, size) => [...text].reduce((w, ch) => w + (ch.codePointAt(0) > 0x2e7f ? 1 : 0.56), 0) * size;
 
   function renderChart(date) {
     const obs = state.obs;
@@ -1065,16 +833,16 @@
     const label = (x, y, dx, dy, text, attrs) => {
       const right = x > C + R * 0.5;
       const size = sizeOf(attrs);
-      const w = text.length * size;
+      const w = textWidth(text, size);
       const tx = right ? x - dx : x + dx;
       const ty = place(right ? tx - w : tx, right ? tx : tx + w, y + dy, size);
-      return `<text x="${f(tx)}" y="${f(ty)}" text-anchor="${right ? 'end' : 'start'}" ${attrs}>${text}</text>`;
+      return `<text x="${f(tx)}" y="${f(ty)}" text-anchor="${right ? 'end' : 'start'}" ${attrs}>${esc(text)}</text>`;
     };
     const centerLabel = (x, y, text, attrs) => {
       const size = sizeOf(attrs);
-      const w = text.length * size;
+      const w = textWidth(text, size);
       const ty = place(x - w / 2, x + w / 2, y, size);
-      return `<text x="${f(x)}" y="${f(ty)}" text-anchor="middle" ${attrs}>${text}</text>`;
+      return `<text x="${f(x)}" y="${f(ty)}" text-anchor="middle" ${attrs}>${esc(text)}</text>`;
     };
     const asterismLabels = [];
     const constLabels = [];
@@ -1104,7 +872,7 @@
       if (up.length < 2) continue;
       const cx = up.reduce((s, p) => s + p.xy[0], 0) / up.length;
       const cy = up.reduce((s, p) => s + p.xy[1], 0) / up.length;
-      constLabels.push([cx, cy + 16, c.name.replace(/（.*）/, '')]);
+      constLabels.push([cx, cy + 16, c.name.replace(/\s*[（(].*[）)]/, '')]);
     }
     // ラベルは優先度の高い順（月 → 惑星 → 明るい星 → 星団 → 星座名 → 大三角）に置く
     const deepLabels = [];
@@ -1137,7 +905,7 @@
     if (mh.altitude > -1) {
       const [x, y] = proj(mh.altitude, mh.azimuth);
       g += `<g transform="translate(${f(x)},${f(y)})"><circle r="13" fill="#fff3c4" opacity=".15"/><circle r="10" fill="#262c4f"/><path d="${moonPath(A.MoonPhase(date), 10)}" fill="#fff3c4"/></g>`;
-      if (mh.altitude > 0) labels += label(x, y, 14, 4, '月', 'font-size="13" font-weight="700" fill="#fff3c4"');
+      if (mh.altitude > 0) labels += label(x, y, 14, 4, L.ui.moon, 'font-size="13" font-weight="700" fill="#fff3c4"');
     }
     for (const [x, y, pl] of planetLabels) labels += label(x, y, 8, -6, pl.name, `font-size="13" font-weight="700" fill="${pl.color}"`);
     starLabels.sort((a, b) => a[4] - b[4]);
@@ -1147,7 +915,7 @@
     for (const [x, y, name] of asterismLabels) labels += centerLabel(x, y, name, 'font-size="11" fill="rgba(255,217,102,.7)"');
     out += `<g clip-path="url(#skyclip)">${g}</g><g paint-order="stroke" stroke="#0a1030" stroke-width="3" stroke-linejoin="round">${labels}</g>`;
     out += `<circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke="rgba(190,205,255,.4)" stroke-width="1.5"/>`;
-    DIRS.forEach((d, i) => {
+    L.dirs.forEach((d, i) => {
       if (i % 2) return;
       const main = i % 4 === 0;
       const rr = R + (main ? 18 : 15);
@@ -1172,7 +940,7 @@
   function defaultStep() {
     if (state.offset === 0) {
       const now = new Date();
-      const mins = (now - atJst(state.base, SLIDER_START_MIN)) / 60000;
+      const mins = (now - atLocal(state.base, SLIDER_START_MIN)) / 60000;
       if (mins >= 0 && mins <= 44 * SLIDER_STEP_MIN) return Math.round(mins / SLIDER_STEP_MIN);
     }
     return 12; // 21:00
@@ -1195,13 +963,13 @@
     const sky = state.skies[state.offset];
     const tone = TONES[state.tone] || TONES.hifuu;
     if (state.weatherStatus === 'loading') {
-      showWaiting('renko', `${whenWord(state.offset, sum.date)}の星空は……`, 'think');
+      showWaiting('renko', L.ui.renkoWaiting(whenWord(state.offset, sum.date)), 'think');
       if (tone.chat) showChatWaiting();
     } else {
-      speak('renko', tone.renko(sum, sky, state.offset).parts);
+      speak('renko', tone.renko(sum, sky, state.offset, helpers).parts);
       if (tone.chat) startChat();
     }
-    speakWhenVisible('mary', tone.mary(sum, sky, state.offset).parts);
+    speakWhenVisible('mary', tone.mary(sum, sky, state.offset, helpers).parts);
   }
 
   function setOffset(i) {
@@ -1215,18 +983,22 @@
     const req = ++state.reqId;
     state.loc = loc;
     state.obs = new A.Observer(loc.lat, loc.lon, 0);
+    state.tz = loc.tz || L.tz;
     const now = new Date();
-    state.base = jstParts(now).h < 6 ? addDays(jstDate(now), -1) : jstDate(now);
+    state.base = localParts(now).h < 6 ? addDays(localDate(now), -1) : localDate(now);
     state.hourMap = null;
     state.jma = null;
     state.weatherStatus = 'loading';
-    state.jmaStatus = 'loading';
+    state.jmaStatus = L.jma && loc.jma ? 'loading' : 'off';
     computeSkies();
     computeSummaries();
     state.step = defaultStep();
     renderAll();
 
-    const [w, j] = await Promise.allSettled([fetchMeteo(String(loc.lat), String(loc.lon)), fetchJma(loc.jma)]);
+    const [w, j] = await Promise.allSettled([
+      fetchMeteo(String(loc.lat), String(loc.lon)),
+      state.jmaStatus === 'loading' ? fetchJma(loc.jma) : Promise.resolve(null),
+    ]);
     if (req !== state.reqId) return;
     if (w.status === 'fulfilled') {
       state.hourMap = toHourMap(w.value);
@@ -1235,12 +1007,14 @@
       console.error('天気データの取得に失敗', w.reason);
       state.weatherStatus = 'error';
     }
-    if (j.status === 'fulfilled') {
-      state.jma = j.value;
-      state.jmaStatus = 'ok';
-    } else {
-      console.warn('気象庁予報の取得に失敗', j.reason);
-      state.jmaStatus = 'error';
+    if (state.jmaStatus === 'loading') {
+      if (j.status === 'fulfilled') {
+        state.jma = j.value;
+        state.jmaStatus = 'ok';
+      } else {
+        console.warn('気象庁予報の取得に失敗', j.reason);
+        state.jmaStatus = 'error';
+      }
     }
     computeSummaries();
     renderAll();
@@ -1268,38 +1042,56 @@
   }
 
   function useGeolocation() {
-    if (!navigator.geolocation) { alert('このブラウザは位置情報に対応していません。'); return; }
+    const U = L.ui;
+    if (!navigator.geolocation) { alert(U.geoUnsupported); return; }
     const btn = $('geo-btn');
     btn.disabled = true;
-    btn.textContent = '測位中…';
+    btn.textContent = U.geoLocating;
     navigator.geolocation.getCurrentPosition((pos) => {
       btn.disabled = false;
-      btn.textContent = '現在地';
+      btn.textContent = U.here;
       const { latitude: lat, longitude: lon } = pos.coords;
-      const near = window.LOCATIONS.reduce((a, b) => (Math.hypot(b.lat - lat, b.lon - lon) < Math.hypot(a.lat - lat, a.lon - lon) ? b : a));
-      const loc = { id: 'here', name: '現在地', lat, lon, jma: near.jma, jmaNear: near.name };
+      const loc = { id: 'here', name: U.here, lat, lon, tz: BROWSER_TZ };
+      // 日本にいるときは、いちばん近い都市の気象庁の予報区を使う
+      if (L.jma && BROWSER_TZ === 'Asia/Tokyo') {
+        const near = window.LOCATIONS.reduce((a, b) => (Math.hypot(b.lat - lat, b.lon - lon) < Math.hypot(a.lat - lat, a.lon - lon) ? b : a));
+        Object.assign(loc, { jma: near.jma, jmaNear: near.name });
+      }
       const sel = $('loc-select');
       let opt = sel.querySelector('option[value="here"]');
-      if (!opt) { opt = new Option('現在地', 'here'); sel.prepend(opt); }
+      if (!opt) { opt = new Option(U.here, 'here'); sel.prepend(opt); }
       sel.value = 'here';
       loadLocation(loc);
     }, () => {
       btn.disabled = false;
-      btn.textContent = '現在地';
-      alert('位置情報を取得できませんでした。');
+      btn.textContent = U.here;
+      alert(U.geoFailed);
     }, { timeout: 10000, maximumAge: 600000 });
   }
 
   function tickClock() {
     const now = new Date();
-    const p = jstParts(now);
+    const p = localParts(now);
     $('clock-time').textContent = `${pad(p.h)}:${pad(p.mi)}:${pad(p.s)}`;
     if (state.loc) {
       const lst = (((A.SiderealTime(now) + state.loc.lon / 15) % 24) + 24) % 24;
       const h = Math.floor(lst);
       const m = Math.floor((lst - h) * 60);
-      $('clock-sidereal').textContent = `地方恒星時 ${h}h${pad(m)}m ／ 北緯${state.loc.lat.toFixed(2)}° 東経${state.loc.lon.toFixed(2)}°`;
+      $('clock-sidereal').textContent = L.ui.sidereal(h, m, state.loc.lat, state.loc.lon);
     }
+  }
+
+  // 最初に開く観察地。'auto' のときは、ブラウザのタイムゾーンに近い都市を選ぶ
+  function initialLocationId() {
+    const locs = window.LOCATIONS;
+    let id = window.DEFAULT_LOCATION;
+    try { id = localStorage.getItem(STORAGE_KEY) || id; } catch (e) { /* noop */ }
+    if (locs.some((l) => l.id === id)) return id;
+    const same = locs.find((l) => l.tz === BROWSER_TZ);
+    if (same) return same.id;
+    const now = Date.now();
+    const mine = tzOffset(now, BROWSER_TZ);
+    return locs.reduce((a, b) => (Math.abs(tzOffset(now, b.tz || L.tz) - mine) < Math.abs(tzOffset(now, a.tz || L.tz) - mine) ? b : a)).id;
   }
 
   /* ---------------------------------------------------------
@@ -1368,15 +1160,13 @@
   function init() {
     initSplash();
     if (!A) {
-      document.body.insertAdjacentHTML('afterbegin', '<p class="error-note wrap">天体計算ライブラリを読み込めませんでした。ネットワークを確認してください。</p>');
+      document.body.insertAdjacentHTML('afterbegin', `<p class="error-note wrap">${L.ui.astroLoadError}</p>`);
       return;
     }
     initBackground();
     const sel = $('loc-select');
     for (const l of window.LOCATIONS) sel.add(new Option(l.name, l.id));
-    let id = window.DEFAULT_LOCATION;
-    try { id = localStorage.getItem(STORAGE_KEY) || id; } catch (e) { /* noop */ }
-    if (!window.LOCATIONS.some((l) => l.id === id)) id = window.DEFAULT_LOCATION;
+    const id = initialLocationId();
     sel.value = id;
     sel.addEventListener('change', () => (sel.value === 'here' ? useGeolocation() : selectLocation(sel.value)));
     $('geo-btn').addEventListener('click', useGeolocation);
