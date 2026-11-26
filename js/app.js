@@ -2,7 +2,7 @@
  * 秘封倶楽部の星空ナビ — メインスクリプト
  *  気象: Open-Meteo / 気象庁 bosai JSON（日本版のみ）
  *  天体: Astronomy Engine
- *  画面の文言と台詞は言語ごとのファイル（js/lang-ja.js / js/lang-en.js）にあります。
+ *  画面の文言と台詞は言語ごとのファイル（日本語は js/lang-ja.js。英語版は english ブランチの js/lang-en.js）にあります。
  * ========================================================= */
 (() => {
   'use strict';

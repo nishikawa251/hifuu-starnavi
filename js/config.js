@@ -58,36 +58,3 @@ window.LOCATIONS = [
   { id: 'naha',      name: '那覇',   lat: 26.2124, lon: 127.6809, jma: '471000' },
 ];
 window.DEFAULT_LOCATION = 'kyoto';
-
-/*
- * 英語版（/en/）の観察地（tz はタイムゾーン、f: true は気温を °F で言う都市）
- *  英語版は、見に来た人のタイムゾーンにいちばん近い都市を最初に開きます。
- */
-window.WORLD_LOCATIONS = [
-  { id: 'kyoto',      name: 'Kyoto',       lat: 35.0116,  lon: 135.7681,  tz: 'Asia/Tokyo' },
-  { id: 'tokyo',      name: 'Tokyo',       lat: 35.6895,  lon: 139.6917,  tz: 'Asia/Tokyo' },
-  { id: 'seoul',      name: 'Seoul',       lat: 37.5665,  lon: 126.9780,  tz: 'Asia/Seoul' },
-  { id: 'shanghai',   name: 'Shanghai',    lat: 31.2304,  lon: 121.4737,  tz: 'Asia/Shanghai' },
-  { id: 'taipei',     name: 'Taipei',      lat: 25.0330,  lon: 121.5654,  tz: 'Asia/Taipei' },
-  { id: 'hongkong',   name: 'Hong Kong',   lat: 22.3193,  lon: 114.1694,  tz: 'Asia/Hong_Kong' },
-  { id: 'manila',     name: 'Manila',      lat: 14.5995,  lon: 120.9842,  tz: 'Asia/Manila' },
-  { id: 'singapore',  name: 'Singapore',   lat: 1.3521,   lon: 103.8198,  tz: 'Asia/Singapore' },
-  { id: 'bangkok',    name: 'Bangkok',     lat: 13.7563,  lon: 100.5018,  tz: 'Asia/Bangkok' },
-  { id: 'sydney',     name: 'Sydney',      lat: -33.8688, lon: 151.2093,  tz: 'Australia/Sydney' },
-  { id: 'auckland',   name: 'Auckland',    lat: -36.8485, lon: 174.7633,  tz: 'Pacific/Auckland' },
-  { id: 'delhi',      name: 'New Delhi',   lat: 28.6139,  lon: 77.2090,   tz: 'Asia/Kolkata' },
-  { id: 'dubai',      name: 'Dubai',       lat: 25.2048,  lon: 55.2708,   tz: 'Asia/Dubai' },
-  { id: 'moscow',     name: 'Moscow',      lat: 55.7558,  lon: 37.6173,   tz: 'Europe/Moscow' },
-  { id: 'berlin',     name: 'Berlin',      lat: 52.5200,  lon: 13.4050,   tz: 'Europe/Berlin' },
-  { id: 'paris',      name: 'Paris',       lat: 48.8566,  lon: 2.3522,    tz: 'Europe/Paris' },
-  { id: 'london',     name: 'London',      lat: 51.5074,  lon: -0.1278,   tz: 'Europe/London' },
-  { id: 'newyork',    name: 'New York',    lat: 40.7128,  lon: -74.0060,  tz: 'America/New_York', f: true },
-  { id: 'toronto',    name: 'Toronto',     lat: 43.6532,  lon: -79.3832,  tz: 'America/Toronto' },
-  { id: 'chicago',    name: 'Chicago',     lat: 41.8781,  lon: -87.6298,  tz: 'America/Chicago', f: true },
-  { id: 'denver',     name: 'Denver',      lat: 39.7392,  lon: -104.9903, tz: 'America/Denver', f: true },
-  { id: 'losangeles', name: 'Los Angeles', lat: 34.0522,  lon: -118.2437, tz: 'America/Los_Angeles', f: true },
-  { id: 'vancouver',  name: 'Vancouver',   lat: 49.2827,  lon: -123.1207, tz: 'America/Vancouver' },
-  { id: 'mexicocity', name: 'Mexico City', lat: 19.4326,  lon: -99.1332,  tz: 'America/Mexico_City' },
-  { id: 'saopaulo',   name: 'São Paulo',   lat: -23.5505, lon: -46.6333,  tz: 'America/Sao_Paulo' },
-  { id: 'honolulu',   name: 'Honolulu',    lat: 21.3069,  lon: -157.8583, tz: 'Pacific/Honolulu', f: true },
-];
