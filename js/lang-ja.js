@@ -315,9 +315,6 @@
     },
     posText: (alt, dir) => (alt > 72 ? '頭の真上あたり' : `${dir}の空・高さ${Math.round(alt)}°`),
 
-    // 雑談の速さ（ミリ秒）：type=1文字打つ間隔、pause=打ち終わってから次の行までの基本の待ち、read=1文字ぶんの読む時間
-    chatPace: { type: 45, pause: 1100, read: 25 },
-
     ui: {
       loading: '読み込み中…',
       checkingClouds: '雲の様子を調べています…',
@@ -358,7 +355,7 @@
       noPlanets: 'この夜に見やすい惑星はありません。',
       planetsOff: (names) => `この夜は見えない: ${names.join('、')}（太陽に近い位置）`,
       chatTopic: (info, title) => `${info.md}（${info.wd}）の話題：${title}`,
-      chatProgress: (n, total) => `${n} / ${total} ・ タップで次へ`,
+      chatTapAll: 'タップで最後まで表示',
       chatNext: (beforeSwitch, hour) => `次の雑談は、${beforeSwitch ? '今朝' : '明日の朝'}${hour}時に`,
       chatWaiting: '二人がカフェテラスに来るのを待っています…',
       renkoWaiting: (when) => `${when}の星空は……`,
