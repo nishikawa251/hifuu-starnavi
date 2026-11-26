@@ -44,6 +44,8 @@ GitHub Pages で公開しています（main ブランチのルートをその�
 | `img/maribel/surprise.png` | 驚き | 流星群の極大の夜 |
 | `img/maribel/eyes_closed.png` | 目閉じ | 曇りの夜のひとこと |
 
+`img/face/` は「部室の雑談」（二人の掛け合い）で使う顔アイコンで、表情差分PNGの顔の部分を 160×160px に切り抜いたものです。
+
 `img/splash/renko.png` と `img/splash/maribel.png` は、オープニング用に立ち絵（微笑）の形だけを一色で塗りつぶしたシルエットです。
 
 表情の割り当ては `js/config.js` の `CHARACTER_IMAGES` で変えられます。

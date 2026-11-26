@@ -471,52 +471,64 @@
     const when = whenWord(offset, sum.date);
     const lead = { text: `${when}の星空は……`, cls: 'lead', speed: 70, pause: 700, expr: 'think' };
     if (state.weatherStatus === 'error') {
-      return { expr: 'error', parts: [lead, { expr: 'error', text: '……あれ？ 天気のデータが届かないわ。結界の向こうで通信が途切れたのかしら。星と月の位置なら、メリーが案内してくれるはずよ。' }] };
+      return { expr: 'error', parts: [lead,
+        { expr: 'error', text: '……あれ、天気のデータが来ない。結界の向こうで回線でも切れたのかしら。' },
+        { text: '星と月の位置なら、メリーのほうで見られるはずよ。' }] };
     }
     if (!sum.hasData) {
-      return { expr: 'normal', parts: [lead, { expr: 'normal', text: '……そこまで先の雲は、さすがにまだ読めないわね。もう少し近くなったらまた聞いて。' }] };
+      return { expr: 'normal', parts: [lead, { expr: 'normal', text: '……そこまで先の雲は、さすがにまだ読めないわ。近くなったらまた聞いて。' }] };
     }
     const best = sum.best ? hourWord(sum.best.h) : '';
-    const lines = [];
     let expr = 'normal';
+    let verdict;
     if (sum.rain) {
-      lines.push(`……雨が降りそう。${offset === 0 ? '今夜' : 'その日'}は部室で星図を広げましょうか。`);
+      verdict = '……雨。星が出ないと、私の目もただの目よ。';
       expr = 'rain';
     } else if (sum.lv === 5) {
-      lines.push(`……満天の星ね！ 雲はほとんどなし。いちばんの狙い目は${best}ごろよ。`);
-      lines.push(offset === 0 ? 'メリー、今夜は徹夜で観測しましょう。' : 'メリー、今のうちに観測の準備をしておいて。');
+      verdict = `……快晴。雲ひとつないわ。狙い目は${best}ごろ。`
+        + (offset === 0 ? 'メリー、今夜は寝かせないわよ。' : '月面ツアーは高過ぎるけど、こっちは自販機のコーヒー代で済むわ。');
       expr = 'great';
     } else if (sum.lv === 4) {
-      lines.push(`……なかなか良さそうよ。ときどき雲が流れるけど、${best}ごろがいちばん見やすいわ。`);
+      verdict = `……まあまあね。ときどき雲が流れるけど、${best}ごろは開けてるはず。`;
       expr = 'good';
     } else if (sum.lv === 3) {
-      lines.push(`……雲と星が半々ってところね。${best}ごろの晴れ間に賭けてみましょう。`);
+      verdict = `……半々ね。雲と星が。${best}ごろの晴れ間に賭けるしかないわ。`;
     } else if (sum.lv === 2) {
-      lines.push(`……うーん、雲が多いわね。${best}ごろに少し切れ間が出るかもしれないけど。`);
+      verdict = `……雲が多いわね。${best}ごろに少し切れるかもしれない、くらい。`;
       expr = 'cloudy';
     } else {
-      lines.push('……残念、ほとんど曇りね。星が見えないと、私の時計も止まったままだわ。');
+      verdict = '……曇り。星が見えないと、私の時計は止まったままよ。';
       expr = 'cloudy';
     }
+    const parts = [lead, { expr, text: verdict }];
 
-    // 判定のあとに、月明かり・気象庁の予報・寒さの話を続ける（話題ごとに段落を分ける）
-    const parts = [lead, { expr, text: lines.join('') }];
+    // 狙い目の時刻を、その土地の「本当の時刻」に直すのが蓮子のくせ（日本標準時は明石＝東経135度が基準）
+    if (sum.best && !sum.rain && sum.lv >= 2) {
+      const diffMin = Math.round((state.loc.lon - 135) * 4);
+      if (Math.abs(diffMin) >= 2) {
+        const real = jstParts(new Date(sum.best.t.getTime() - diffMin * 60000));
+        const place = state.loc.id === 'here' ? 'ここ' : state.loc.name;
+        parts.push({ text: `厳密には、${place}の本当の${sum.best.h}時は${real.h}時${pad(real.mi)}分。明石より${diffMin > 0 ? '東' : '西'}だから。……まあ、私の目が読めるのは日本標準時だけで、それ以外は能力外なんだけど。` });
+      }
+    }
+
+    // 月明かり・気象庁の予報・寒さの話を、話題ごとに段落を分けて続ける
     const m = sky.moon;
     if (sum.lv >= 3 && !sum.rain) {
       const setInNight = m.set && m.set > sky.dusk && m.set < sky.dawn;
       const riseInNight = m.rise && m.rise > sky.dusk && m.rise < sky.dawn;
       let ml = '';
-      if (m.illum >= 0.75 && m.upFrac > 0.4) ml = `ただ、${m.name}が明るいから、暗い星は見えにくいかも。`;
-      else if (m.upFrac < 0.15 || m.illum < 0.15) ml = '月明かりの邪魔もないから、暗い星までよく見えるはずよ。';
-      else if (setInNight && m.illum > 0.3) ml = `月が${fmtHM(m.set, sum.date)}に沈んだあとが勝負ね。`;
-      else if (riseInNight && m.illum > 0.3) ml = `${fmtHM(m.rise, sum.date)}に月が昇ってくるまでが勝負ね。`;
+      if (m.illum >= 0.75 && m.upFrac > 0.4) ml = 'ただ、月が明るいから暗い星は諦めて。';
+      else if (m.upFrac < 0.15 || m.illum < 0.15) ml = '月も出てないから、暗い星まで拾えるはずよ。';
+      else if (setInNight && m.illum > 0.3) ml = `月が${fmtHM(m.set, sum.date)}に沈むまでは我慢ね。`;
+      else if (riseInNight && m.illum > 0.3) ml = `${fmtHM(m.rise, sum.date)}に月が昇ってくるから、それまでが勝負。`;
       if (ml) parts.push({ text: ml });
     }
     const jmaText = state.jma?.text?.[sum.date];
-    if (jmaText) parts.push({ text: `気象庁の予報だと「${jmaText}」だって。` });
+    if (jmaText) parts.push({ text: `気象庁は「${jmaText}」だって。` });
     if (sum.tmin != null && !sum.rain && sum.lv >= 2) {
-      if (sum.tmin <= 3) parts.push({ text: `夜は${sum.tmin}℃くらいまで冷えるから、しっかり着込んできてね。` });
-      else if (sum.tmin <= 10) parts.push({ text: `${sum.tmin}℃くらいまで下がるから、上着を忘れずに。` });
+      if (sum.tmin <= 3) parts.push({ text: `${sum.tmin}℃まで下がるわよ。着込んできて。` });
+      else if (sum.tmin <= 10) parts.push({ text: `${sum.tmin}℃くらい。上着は要るわね。` });
     }
     return { expr, parts };
   }
@@ -524,63 +536,249 @@
   function maryScript(sum, sky, offset) {
     const when = whenWord(offset, sky.date);
     const parts = [{ text: `蓮子、${when}はこんな星が見れるはずよ！`, cls: 'lead', speed: 45, pause: 400, expr: 'happy' }];
-    const magWord = (mag) => (mag <= -3 ? 'ひときわ明るく' : mag <= -1.5 ? 'とても明るく' : mag <= 0.5 ? '明るく' : '');
+    const PLANET_NOTE = {
+      土星: '輪っかは肉眼じゃ見えないけどね。',
+      木星: '明るいから、すぐわかるわ。',
+      金星: '眩しいくらいよ。',
+      火星: '赤っぽいから、すぐわかるわ。',
+      水星: '低いから、見えたら運がいいほう。',
+    };
 
-    // 惑星 → 月 → 星座 → 流星群 → （曇りなら）ひとこと、の順にたっぷり話す
+    // 惑星 → 月 → 星座 → 流星群 → （曇りなら）ひとこと、の順に話す
     const vis = sky.planets.filter((p) => p.visible).sort((a, b) => a.mag - b.mag);
     const evening = vis.filter((p) => p.period === '宵の空' || p.period === '一晩中');
     const late = vis.filter((p) => p.period === '夜半' || p.period === '夜半〜明け方');
     const morning = vis.filter((p) => p.period === '明け方の空');
     if (evening.length) {
       const p = evening[0];
-      const mw = magWord(p.mag);
       let s = p.period === '宵の空'
-        ? `日が暮れたら${p.bestDir}の空を見て。${p.constellation}のあたりで、${p.name}が${mw}輝いているわ。`
-        : `${p.name}が一晩中見えるわ。${fmtHM(p.best.t, sky.date)}ごろ、${p.bestDir}の空で${mw}輝いているはずよ（${p.constellation}）。`;
+        ? `日が暮れたら${p.bestDir}の空に${p.name}。${PLANET_NOTE[p.name] || ''}`
+        : `${p.name}は一晩中出てるわ。${fmtHM(p.best.t, sky.date)}ごろ、${p.bestDir}の空でいちばん高くなる。`;
       const others = evening.slice(1).map((x) => x.name);
-      if (others.length) s += `${others.join('、')}も見えるわね。`;
+      if (others.length) s += `${others.join('と')}もいるわよ。`;
       parts.push({ text: s });
     }
     if (late.length) {
       const names = late.map((p) => p.name).join('と');
-      parts.push({ text: evening.length
-        ? `夜が更けると、${names}も昇ってくるわ。${fmtHM(late[0].start, sky.date)}ごろからね。`
-        : `${fmtHM(late[0].start, sky.date)}ごろになると、${names}が昇ってくるわ（${late[0].constellation}）。` });
+      const start = fmtHM(late[0].start, sky.date);
+      parts.push({ text: evening.length ? `夜が更けたら${names}も昇ってくる。${start}ごろから。` : `${start}ごろになると、${names}が昇ってくるわ。` });
     }
     if (morning.length) {
-      const names = morning.map((p) => (p.mag <= -3 ? `ひときわ明るい${p.name}` : p.name)).join('、');
+      const names = morning.map((p) => p.name).join('と');
       parts.push({ text: evening.length || late.length
-        ? `早起きするなら、明け方の空に${names}も並ぶわよ。`
-        : `惑星を見るなら明け方ね。${morning[0].bestDir}の空に${names}が見えるわ。` });
+        ? `明け方には${names}。早起きできたらの話だけど。`
+        : `惑星なら明け方ね。${morning[0].bestDir}の空に${names}。早起きできたらの話だけど。` });
     }
 
     const m = sky.moon;
     const setInNight = m.set && m.set > sky.dusk && m.set < sky.dawn;
     const riseInNight = m.rise && m.rise > sky.dusk && m.rise < sky.dawn;
-    let ms = `月は${m.name}（月齢${m.age.toFixed(1)}）。`;
-    if (m.upFrac < 0.05) ms += '夜のあいだは沈んでいるから、星を見るには絶好ね。';
-    else if (m.upFrac > 0.9) ms += '一晩中、空にいるわね。';
-    else if (m.upAtDusk && setInNight) ms += `${fmtHM(m.set, sky.date)}に沈むわ。`;
-    else if (riseInNight) ms += `${fmtHM(m.rise, sky.date)}に昇ってくるわ。`;
+    let ms = `月は${m.name}。`;
+    if (m.upFrac < 0.05) ms += '夜は沈んでるから、邪魔はされないわ。';
+    else if (m.upFrac > 0.9) ms += '一晩中出てるわ。';
+    else if (m.upAtDusk && setInNight) ms += `${fmtHM(m.set, sky.date)}に沈む。`;
+    else if (riseInNight) ms += `${fmtHM(m.rise, sky.date)}に昇ってくる。`;
+    if (m.illum > 0.9) ms += '……池に映った月なら、向こう側も見えるんだけど。今のは聞かなかったことにして。';
     parts.push({ text: ms });
 
     const c = constellationsAt(atJst(sky.date, 21 * 60), state.obs).find((x) => x.size >= 3 && x.name !== 'こぐま座');
-    if (c) parts.push({ text: `21時ごろは${c.name}が${c.alt > 72 ? '頭の真上あたり' : `${c.dir}の空`}に見えるわ。${c.tip}` });
+    if (c) parts.push({ text: `21時ごろは${c.name}が${c.alt > 72 ? '頭の真上' : `${c.dir}の空`}。${c.tip}` });
 
     let expr = 'happy';
     const shower = upcomingShowers(sky.date, 10)[0];
     if (shower && (shower.diff === 0 || shower.diff === 1)) {
-      parts.push({ expr: 'excited', text: `しかも${shower.name}の極大の夜よ！ 流れ星、いくつ数えられるかしら。` });
+      parts.push({ expr: 'excited', text: `しかも${shower.name}の極大の夜よ。` });
       expr = 'excited';
     } else if (shower && shower.diff > 1) {
-      parts.push({ text: `それと、${dateInfo(shower.date).md}は${shower.name}の極大よ。覚えておいてね。` });
+      parts.push({ text: `${dateInfo(shower.date).md}は${shower.name}の極大。忘れないでね。` });
     }
 
     if (state.weatherStatus === 'ok' && sum.hasData && (sum.rain || sum.lv <= 2)) {
-      parts.push({ expr: 'gentle', text: '……雲で隠れちゃっても、星はちゃんとそこにあるのよ。私の目には、ちょっとだけ見えちゃうけど。' });
+      parts.push({ expr: 'gentle', text: '雲で見えなくても、星はそこにあるわよ。……私には、ちょっと見えちゃってるけど。' });
       expr = 'gentle';
     }
     return { expr, parts };
+  }
+
+  /* ---------------------------------------------------------
+   * 部室の雑談（二人の掛け合い）
+   *  その夜の天気・月・流星群・時刻に合う話題を選んで、1行ずつ表示する
+   * --------------------------------------------------------- */
+  function chatTopics(sum, sky, offset) {
+    const when = whenWord(offset, sum.date);
+    const hasW = state.weatherStatus === 'ok' && sum.hasData;
+    const m = sky.moon;
+    const R = (expr, text) => ['renko', expr, text];
+    const M = (expr, text) => ['maribel', expr, text];
+    const topics = [];
+    const add = (title, lines) => topics.push({ title, lines });
+
+    // 天気しだいの話題を先頭に
+    if (hasW && sum.rain) {
+      add('雨の日の部室', [
+        R('cry', '……雨。うちは不良サークルだから、雨の日は活動休止ね'),
+        M('jitome', '晴れの日も、大した活動はしてないじゃない'),
+        R('smile', '失礼ね。毎晩ちゃんと時刻は確認してるわ'),
+        M('smile', 'それ、活動なの？'),
+      ]);
+    } else if (hasW && sum.lv <= 2 && sum.best) {
+      add('雲待ち', [
+        M('smile', '曇りなのに、なんでずっと空を見てるの？'),
+        R('jitome', `雲の切れ目待ち。${hourWord(sum.best.h)}ごろに一瞬だけ開くはずなのよ`),
+        M('jitome', 'その一瞬のために、この寒い中？'),
+        R('smile', '理系はみんなこうよ'),
+      ]);
+    } else if (hasW && sum.lv >= 4) {
+      add(offset === 0 ? '晴れた夜' : '晴れの前の晩', [
+        M('smile', '空の仕掛けが全部わかっちゃうと、そのうち虚無主義になりそうね'),
+        R('jitome', offset === 0
+          ? '誰が虚無主義よ。今夜が楽しみすぎて、昼間ぐっすり寝ちゃったくらいなんだから'
+          : `誰が虚無主義よ。${when}の晴れ間が楽しみで、今夜はぐっすり眠れそうなくらいなんだから`),
+        M('jitome', '……それ、楽しみにしてる人の台詞？'),
+      ]);
+    }
+
+    const shower = upcomingShowers(sum.date, 10)[0];
+    if (shower && shower.diff <= 1) {
+      add('流れ星の数', [
+        R('laugh', `${when}は流れ星が1時間に${shower.zhr}個見えるわよ`),
+        M('jitome', 'また嘘でしょ'),
+        R('smile', `今回は本当。${shower.name}の極大だもの`),
+        R('eyes_closed', '……条件が理想的なら、だけど'),
+        M('smile', 'やっぱり半分嘘じゃない'),
+      ]);
+    } else {
+      add('流れ星の数', [
+        R('laugh', `${when}は流れ星が1時間に100個見えるわよ`),
+        M('surprise', '本当？'),
+        R('smile', '嘘。でも、せっかくだし数えに行く？'),
+        M('jitome', '……行くけど'),
+      ]);
+    }
+
+    if (hasW && !sum.rain && sum.tmin != null && sum.tmin <= 5) {
+      add('夜の寒さ', [
+        M('jitome', `${sum.tmin}℃ですって`),
+        R('smile', '宇宙はマイナス270℃よ。それに比べたら'),
+        M('jitome', '比べる相手がおかしいのよ'),
+      ]);
+    }
+
+    const skyHidden = hasW && (sum.rain || sum.lv <= 1); // 雨や曇りの夜に月明かりの話はしない
+    if (!skyHidden && m.illum >= 0.75 && m.upFrac > 0.4) {
+      add('明るすぎる月', [
+        R('jitome', '月が明るすぎるわ。暗い星は全滅ね'),
+        M('eyes_closed', '私には、月の向こう側のほうがよく見えるけど'),
+        R('smile', 'それ、星空観察って言わないのよ'),
+      ]);
+    }
+
+    const jmaText = state.jma?.text?.[sum.date];
+    if (jmaText) {
+      add('予報の当て合い', [
+        R('smile', `気象庁は「${jmaText}」だって`),
+        M('smile', '蓮子の目と気象庁、どっちが当たるの？'),
+        R('laugh', '星が出てるうちは私'),
+        M('smile', '出てないときは？'),
+        R('eyes_closed', '……神頼みね'),
+      ]);
+    }
+
+    const ev = sky.planets.filter((p) => p.visible && (p.period === '宵の空' || p.period === '一晩中')).sort((a, b) => a.mag - b.mag)[0];
+    if (ev) {
+      add('惑星を見に', [
+        M('smile', `${ev.name}って、肉眼で見えるのかしら`),
+        R('smile', `見えるわよ。${ev.mag.toFixed(1)}等だもの。ただの明るい点だけど`),
+        M('jitome', 'ただの点を見に、わざわざ夜中に出かけるのね、私たち'),
+        R('laugh', '点でも本物よ。プラネタリウムの星は照明だもの'),
+      ]);
+    }
+
+    if (sky.planets.some((p) => p.body === 'Venus' && p.visible && p.period === '明け方の空')) {
+      add('明けの明星', [
+        M('smile', '明け方には金星がよく見えるわよ'),
+        R('smile', '明け方ね。起きられたら見るわ'),
+        M('jitome', '待ち合わせにも毎回遅れてくる人が、よく言うわ'),
+        R('panic', '2分くらいでしょ'),
+        M('smile', '2分19秒'),
+      ]);
+    }
+
+    // 時刻は表示した瞬間の本物の時刻。夜は星で、昼は……
+    add('星の時計', () => {
+      const now = new Date();
+      const p = jstParts(now);
+      const night = bodyHorizon('Sun', now, state.obs).altitude < -6;
+      return night
+        ? [
+          R('eyes_closed', `（空を見上げて）${p.h}時${pad(p.mi)}分${pad(p.s)}秒`),
+          M('jitome', '……毎回思うけど、その目、気持ち悪いわよ'),
+          R('smile', 'メリーにだけは言われたくない'),
+        ]
+        : [
+          R('smile', 'メリー、今何時？'),
+          M('jitome', '自分の目で見ればいいじゃない'),
+          R('jitome', '昼間は星が出てないのよ'),
+          M('smile', `${p.h}時${pad(p.mi)}分。……スマホで見たけど`),
+        ];
+    });
+
+    add('250万年前の光', [
+      M('smile', 'アンドロメダ銀河の光って、250万年前のものなのよ'),
+      R('smile', '京都の人が好きそうね。古いから'),
+      M('jitome', 'それ、京都の人の前で言わないでね'),
+    ]);
+
+    add('いつかの月', [
+      M('eyes_closed', 'いつか、本物の月の上から星を見てみたいわね'),
+      R('smile', 'まずはバイトね'),
+      M('jitome', '……夢の話をしてたんだけど'),
+    ]);
+    return topics;
+  }
+
+  const chat = { topics: [], idx: 0, token: null, seen: false, pending: false };
+
+  function chatLineEl(who, expr, text) {
+    const div = document.createElement('div');
+    div.className = `chat-line ${who === 'renko' ? 'renko' : 'mary'}`;
+    const name = who === 'renko' ? '蓮子' : 'メリー';
+    div.innerHTML = `<span class="chat-face"><img src="img/face/${who}-${expr}.png" alt=""></span><p class="chat-msg"><span class="chat-name">${name}</span>${esc(text)}</p>`;
+    const img = div.querySelector('img');
+    img.addEventListener('error', () => { if (!img.src.endsWith('-smile.png')) img.src = `img/face/${who}-smile.png`; }, { once: true });
+    return div;
+  }
+
+  function playChat() {
+    const t = chat.topics[chat.idx];
+    if (!t) return;
+    const token = Symbol('chat');
+    chat.token = token;
+    $('chat-topic').textContent = `話題：${t.title}`;
+    $('chat-count').textContent = `${chat.idx + 1} / ${chat.topics.length}`;
+    const log = $('chat-log');
+    log.innerHTML = '';
+    const lines = typeof t.lines === 'function' ? t.lines() : t.lines;
+    (async () => {
+      for (let i = 0; i < lines.length; i++) {
+        if (i > 0 && !REDUCE_MOTION) await sleep(Math.min(2600, 700 + lines[i - 1][2].length * 45)); // 前の台詞を読む時間
+        if (chat.token !== token) return;
+        log.appendChild(chatLineEl(...lines[i]));
+      }
+    })();
+  }
+
+  function startChat() {
+    chat.topics = chatTopics(state.summaries[state.offset], state.skies[state.offset], state.offset);
+    chat.idx = 0;
+    if (chat.seen) playChat();
+    else chat.pending = true; // 画面に入ったら始める
+  }
+  function showChatWaiting() {
+    chat.token = Symbol('wait');
+    $('chat-topic').textContent = '';
+    $('chat-count').textContent = '';
+    $('chat-log').innerHTML = '<p class="loading">二人が部室に来るのを待っています…</p>';
   }
 
   /* ---------------------------------------------------------
@@ -968,8 +1166,10 @@
     const sky = state.skies[state.offset];
     if (state.weatherStatus === 'loading') {
       showWaiting('renko', `${whenWord(state.offset, sum.date)}の星空は……`, 'think');
+      showChatWaiting();
     } else {
       speak('renko', renkoScript(sum, sky, state.offset).parts);
+      startChat();
     }
     speakWhenVisible('mary', maryScript(sum, sky, state.offset).parts);
   }
@@ -1158,6 +1358,25 @@
       state.showLines = e.target.checked;
       renderChartTime();
     });
+    // 部室の雑談：「次の話題」と、画面に入ったときの開始
+    $('chat-next').addEventListener('click', () => {
+      if (!chat.topics.length) return;
+      chat.idx = (chat.idx + 1) % chat.topics.length;
+      chat.seen = true;
+      playChat();
+    });
+    const chatPanel = $('chat');
+    const startWhenSeen = () => {
+      chat.seen = true;
+      if (chat.pending) { chat.pending = false; playChat(); }
+    };
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver((entries, obs) => {
+        if (entries.some((e) => e.isIntersecting)) { startWhenSeen(); obs.disconnect(); }
+      }, { threshold: 0.35 }).observe(chatPanel);
+    } else {
+      startWhenSeen();
+    }
     // 各パネルの中のタブ切り替え
     document.querySelectorAll('.subtabs').forEach((tabs) => {
       const group = tabs.dataset.group;

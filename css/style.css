@@ -265,6 +265,36 @@ main { display: grid; gap: 32px; padding: 8px 16px 48px; }
 .error-note { color: #ffb4bd; font-size: 0.85rem; }
 .loading { color: var(--text-faint); font-size: 0.9rem; }
 
+/* ---------- 部室の雑談（掛け合い） ---------- */
+.chat-panel { display: block; padding: 22px 28px; }
+/* 上の線を、蓮子の赤からメリーの紫へのグラデーションに */
+.chat-panel::before { content: ''; position: absolute; left: 24px; right: 24px; top: 0; height: 3px; border-radius: 0 0 3px 3px; background: linear-gradient(90deg, var(--renko), var(--mary)); }
+.chat-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.chat-head h2 { font-size: 1.3rem; }
+.chat-sub { margin: 0; font-size: 0.82rem; color: var(--text-faint); }
+.chat-log { display: grid; gap: 12px; min-height: 150px; }
+.chat-line { display: flex; align-items: flex-end; gap: 10px; max-width: 86%; animation: chat-in 0.35s ease-out both; }
+.chat-line.mary { margin-left: auto; flex-direction: row-reverse; }
+@keyframes chat-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.chat-face { flex: 0 0 auto; width: 52px; height: 52px; border-radius: 50%; overflow: hidden; background: rgba(255, 255, 255, 0.08); }
+.chat-line.renko .chat-face { box-shadow: 0 0 0 2px var(--renko); }
+.chat-line.mary .chat-face { box-shadow: 0 0 0 2px var(--mary); }
+.chat-face img { width: 100%; height: 100%; display: block; }
+.chat-msg { position: relative; padding: 9px 15px; border-radius: 16px; font-size: 0.97rem; line-height: 1.7; color: #1b1f3a; }
+.chat-line.renko .chat-msg { background: #ffe9ec; border-bottom-left-radius: 4px; }
+.chat-line.mary .chat-msg { background: #efe8ff; border-bottom-right-radius: 4px; }
+.chat-name { display: block; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; }
+.chat-line.renko .chat-name { color: #d23c4d; }
+.chat-line.mary .chat-name { color: #7b52d9; }
+.chat-foot { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 16px; }
+.chat-count { font-size: 0.78rem; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.chat-next {
+  font: inherit; font-size: 0.92rem; font-weight: 700; color: #1a1026; cursor: pointer;
+  background: linear-gradient(90deg, var(--renko), var(--mary)); border: 0; border-radius: 999px; padding: 8px 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+.chat-next:hover { filter: brightness(1.08); }
+
 /* ---------- オープニング ---------- */
 html.splash-on { overflow: hidden; }
 .splash {
@@ -368,6 +398,10 @@ html.splash-on { overflow: hidden; }
   .renko-panel .bubble::after { left: 30%; }
   .mary-panel .bubble::after { right: 30%; }
   .stage-head { font-size: 1.25rem; }
+  .chat-panel { padding: 18px 14px; }
+  .chat-line { max-width: 94%; gap: 8px; }
+  .chat-face { width: 42px; height: 42px; }
+  .chat-msg { font-size: 0.92rem; padding: 8px 12px; }
   .index-card { gap: 14px; padding: 14px; }
   .index-ring { width: 96px; height: 96px; }
   .index-num { font-size: 2rem; }
