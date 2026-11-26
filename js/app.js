@@ -517,6 +517,27 @@
   }
   let checkArrival = () => {};
 
+  // 背の高い画面では、いちばん下までスクロールしても雑談の部屋が画面の上のほうまで来ない。
+  // そのぶん、最後の一画面ぶんのスクロールに合わせて二人をすーっとおろして、ちょうど一番下で部屋に着くようにする
+  function updateDrop() {
+    const figs = [...document.querySelectorAll('.track .portrait')];
+    const room = $('chat');
+    const clear = () => figs.forEach((f) => f.style.removeProperty('--drop'));
+    if (!figs.length || !room || room.hidden || !isStage()) { clear(); return; }
+    const vh = window.innerHeight;
+    const y = window.scrollY;
+    const maxScroll = document.documentElement.scrollHeight - vh;
+    const roomTop = room.getBoundingClientRect().top + y;          // ページの中での部屋の上端
+    const cs = getComputedStyle(room);
+    const inset = parseFloat(cs.paddingTop) + parseFloat(cs.borderTopWidth);
+    const stick = parseFloat(getComputedStyle(figs[0]).top) || 64;
+    const need = roomTop - maxScroll + inset - stick;               // 一番下で、部屋まで足りない距離
+    const start = Math.max(0, roomTop - vh);                        // 部屋が画面の下に見えはじめた位置から
+    let drop = 0;
+    if (need > 0 && maxScroll > start) drop = need * clamp((y - start) / (maxScroll - start), 0, 1);
+    figs.forEach((f) => f.style.setProperty('--drop', `${drop.toFixed(1)}px`));
+  }
+
   /* ---------------------------------------------------------
    * 台詞のバージョン切り替え（URL の ?tone= で指定。リンクを共有して見比べられる）
    *  台詞そのものは言語ファイル（L.tones）にある
@@ -595,6 +616,7 @@
         if (i > 0 && !chat.fast) await chatWait(Math.min(2800, 800 + lines[i - 1][2].length * 50)); // 前の台詞を読む時間
         if (chat.token !== token) return;
         log.appendChild(chatLineEl(...lines[i]));
+        updateDrop(); // 会話が伸びるとページの長さが変わる
         if (isStage()) { // そばにいる二人の表情も変える
           const char = lines[i][0] === 'renko' ? 'renko' : 'maribel';
           setPortrait(char, lines[i][1]);
@@ -1457,10 +1479,11 @@
     window.addEventListener('scroll', () => {
       if (ticking) return;
       ticking = true;
-      requestAnimationFrame(() => { ticking = false; checkArrival(); });
+      requestAnimationFrame(() => { ticking = false; updateDrop(); checkArrival(); });
     }, { passive: true });
-    window.addEventListener('resize', () => checkArrival());
-    const onStageChange = () => { placePortraits(); checkArrival(); };
+    window.addEventListener('resize', () => { updateDrop(); checkArrival(); });
+    if ('ResizeObserver' in window) new ResizeObserver(() => updateDrop()).observe($('stage'));
+    const onStageChange = () => { placePortraits(); updateDrop(); checkArrival(); };
     if (stageMQ.addEventListener) stageMQ.addEventListener('change', onStageChange);
     else if (stageMQ.addListener) stageMQ.addListener(onStageChange);
     placePortraits();

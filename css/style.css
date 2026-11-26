@@ -158,7 +158,9 @@ main { display: grid; gap: 32px; padding: 8px 16px 48px; }
     display: grid; grid-template-columns: var(--portrait-w) minmax(0, 1fr) var(--portrait-w); column-gap: var(--col-gap);
     min-height: max(calc(var(--portrait-w) * 1.5 + 2 * var(--pad-y) + 4px), min(calc(100vh - 140px), calc(var(--portrait-w) * 1.5 + 2 * var(--pad-y) + 60px)));
   }
-  .stage { padding-bottom: max(32px, calc(100vh - var(--stick-top) - var(--portrait-w) * 1.5 - 2 * var(--pad-y) - 60px - 270px)); }
+  .stage { padding-bottom: 32px; }
+  /* 背の高い画面で、最後のスクロールに合わせて二人を雑談の部屋までおろす量（js が --drop を入れる） */
+  .track .portrait { transform: translateY(var(--drop, 0px)); }
   .stage > .chat-panel .chat-body { grid-column: 2; min-width: 0; }
   /* 広い画面では大きい立ち絵がそばにいるので、顔アイコンは出さず、吹き出しのしっぽを話している人に向ける */
   .stage > .chat-panel .chat-face { display: none; }
