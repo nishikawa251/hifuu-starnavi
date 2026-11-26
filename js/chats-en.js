@@ -1,6 +1,6 @@
 /* =========================================================
- * Club Room Chat — English (one episode a day, switching at 6 AM Kyoto time)
- *  (英語版の「部室の雑談」。js/chats.js と同じ順番・同じ話)
+ * Café Chat — English (one episode a day, switching at 6 AM Kyoto time)
+ *  (英語版の「カフェテラスの雑談」。js/chats.js と同じ順番・同じ話)
  *  One line = [speaker, expression, text]
  *    speaker:    'renko' / 'maribel'
  *    expression: Renko smile / laugh / jitome / eyes_closed / cry / panic / surprise

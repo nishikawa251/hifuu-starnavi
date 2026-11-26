@@ -478,7 +478,7 @@
   /* ---------------------------------------------------------
    * 二人がスクロールについてくる舞台（広い画面だけ）
    *  立ち絵は、ページの下まで続く「レール」（.track）の中で sticky。
-   *  蓮子はメリーのパネルの裏を通っておりていき、二人が「部室の雑談」まで来たら雑談が始まる。
+   *  蓮子はメリーのパネルの裏を通っておりていき、二人が「カフェテラスの雑談」まで来たら雑談が始まる。
    *  スマホでは、立ち絵を各パネルの中（.portrait-slot）に戻す
    * --------------------------------------------------------- */
   const stageMQ = window.matchMedia('(min-width: 681px)');
@@ -529,7 +529,7 @@
   function applyTone(tone, { updateURL = false } = {}) {
     state.tone = tone;
     document.querySelectorAll('.tone-switch button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tone === tone)));
-    $('chat').hidden = !TONES[tone].chat; // 旧版には「部室の雑談」はなかったので出さない
+    $('chat').hidden = !TONES[tone].chat; // 旧版には雑談はなかったので出さない
     if (updateURL) {
       const url = new URL(location.href);
       if (tone === 'hifuu') url.searchParams.delete('tone');
@@ -539,12 +539,12 @@
   }
 
   /* ---------------------------------------------------------
-   * 部室の雑談（二人の掛け合い）
-   *  1日に1話（js/chats.js）。部室は京都なので、日本時間の朝6時に次の話に替わる
+   * カフェテラスの雑談（二人の掛け合い）
+   *  1日に1話（js/chats.js）。二人がいるのは京都なので、日本時間の朝6時に次の話に替わる
    * --------------------------------------------------------- */
   const CHAT_TZ = 'Asia/Tokyo';
   const CHAT_SWITCH_HOUR = 6; // 朝6時に次の話に替わる（サイトの「今夜」の区切りと同じ）
-  const chat = { day: null, token: null, seen: false, pending: false, fast: false, wake: null };
+  const chat = { day: null, token: null, seen: false, pending: false, lines: [], i: -1, done: false, typing: null, timer: null, beforeSwitch: false };
   const gcd = (a, b) => (b ? gcd(b, a % b) : a);
 
   // 今日の雑談。日付から決まるので、誰がいつ開いても同じ日なら同じ話になる
@@ -556,51 +556,99 @@
     while (gcd(step, list.length) !== 1) step++;
     return { day, ep: list[(((day * step) % list.length) + list.length) % list.length] };
   }
-  // 待ち時間。タップされたらすぐ次へ
-  const chatWait = (ms) => new Promise((resolve) => {
-    const t = setTimeout(resolve, ms);
-    chat.wake = () => { clearTimeout(t); resolve(); };
-  });
-
-  function chatLineEl(who, expr, text) {
+  // 雑談の1行。顔アイコンは、スマホと冥界の場面だけで見える（広い画面では大きい立ち絵がそばにいるので CSS で隠す）
+  function chatLineEl(who, expr, text, cls = '') {
     const div = document.createElement('div');
-    div.className = `chat-line ${who === 'renko' ? 'renko' : 'mary'}`;
+    div.className = `chat-line ${who === 'renko' ? 'renko' : 'mary'}${cls ? ` ${cls}` : ''}`;
     const name = L.short[who === 'renko' ? 'renko' : 'maribel'];
-    div.innerHTML = `<span class="chat-face"><img src="img/face/${who}-${expr}.png" alt=""></span><p class="chat-msg"><span class="chat-name">${name}</span>${esc(text)}</p>`;
+    div.innerHTML = `<span class="chat-face"><img src="img/face/${who}-${expr}.png" alt=""></span><p class="chat-msg"><span class="chat-name">${name}</span><span class="chat-text">${esc(text)}</span></p>`;
     const img = div.querySelector('img');
     img.addEventListener('error', () => { if (!img.src.endsWith('-smile.png')) img.src = `img/face/${who}-smile.png`; }, { once: true });
     return div;
   }
 
+  // 雑談は1行ずつ（文字を打って、少し待って次へ）。前の行だけうすく残して、下に長く伸びないようにする
+  function stopChatTimers() {
+    clearTimeout(chat.timer);
+    chat.timer = null;
+    if (chat.typing) { clearTimeout(chat.typing.t); chat.typing = null; }
+  }
+  function nextChatLine() {
+    if (chat.typing) { chat.typing.finish(); return; } // 打っている途中なら、その行を最後まで出す
+    clearTimeout(chat.timer);
+    if (chat.done) return;
+    if (chat.i >= chat.lines.length - 1) { finishChat(); return; }
+    const token = chat.token;
+    chat.i++;
+    const [who, expr, text] = chat.lines[chat.i];
+    const char = who === 'renko' ? 'renko' : 'maribel';
+    const log = $('chat-log');
+    log.innerHTML = '';
+    if (chat.i > 0) log.appendChild(chatLineEl(...chat.lines[chat.i - 1], 'prev'));
+    const cur = chatLineEl(who, expr, REDUCE_MOTION ? text : '', 'now');
+    log.appendChild(cur);
+    const el = cur.querySelector('.chat-text');
+    $('chat-count').textContent = L.ui.chatProgress(chat.i + 1, chat.lines.length);
+    const fig = isStage() ? document.querySelector(`.portrait[data-char="${char}"]`) : null;
+    if (fig) setPortrait(char, expr); // そばにいる二人の表情も変える
+    const pace = L.chatPace;
+    const done = () => {
+      chat.typing = null;
+      el.textContent = text;
+      if (fig) fig.classList.remove('speaking');
+      if (chat.token !== token) return;
+      if (chat.i >= chat.lines.length - 1) { finishChat(); return; }
+      chat.timer = setTimeout(nextChatLine, pace.pause + [...text].length * pace.read);
+    };
+    if (REDUCE_MOTION) { done(); return; }
+    if (fig) fig.classList.add('speaking');
+    const chars = [...text];
+    let j = 0;
+    chat.typing = { t: null, finish: () => { clearTimeout(chat.typing.t); done(); } };
+    const tick = () => {
+      if (chat.token !== token || !chat.typing) return;
+      j++;
+      el.textContent = chars.slice(0, j).join('');
+      if (j >= chars.length) { done(); return; }
+      chat.typing.t = setTimeout(tick, pace.type);
+    };
+    tick();
+  }
+  function finishChat() {
+    stopChatTimers();
+    chat.done = true;
+    $('chat-count').textContent = L.ui.chatNext(chat.beforeSwitch, CHAT_SWITCH_HOUR);
+    const again = $('chat-replay');
+    if (again) again.hidden = false;
+  }
+  function replayChat() {
+    if (!chat.lines.length) return;
+    stopChatTimers();
+    chat.token = Symbol('chat');
+    chat.i = -1;
+    chat.done = false;
+    $('chat-replay').hidden = true;
+    nextChatLine();
+  }
+
   function playChat() {
     const t = todaysChat();
     if (!t) return;
-    const token = Symbol('chat');
-    chat.token = token;
+    stopChatTimers();
+    chat.token = Symbol('chat');
     chat.day = t.day;
-    chat.fast = REDUCE_MOTION;
+    chat.i = -1;
+    chat.done = false;
     const now = new Date();
     const p = localParts(now, CHAT_TZ);
+    chat.beforeSwitch = p.h < CHAT_SWITCH_HOUR;
     const label = dateInfo(localDate(new Date(now.getTime() - CHAT_SWITCH_HOUR * 3600e3), CHAT_TZ));
     $('chat-topic').textContent = L.ui.chatTopic(label, t.ep.title);
-    $('chat-count').textContent = L.ui.chatTapAll;
     const ctx = { night: bodyHorizon('Sun', now, state.obs).altitude < -6, h: p.h, mm: pad(p.mi), ss: pad(p.s) };
-    const lines = typeof t.ep.lines === 'function' ? t.ep.lines(ctx) : t.ep.lines;
-    const log = $('chat-log');
-    log.innerHTML = '';
-    (async () => {
-      for (let i = 0; i < lines.length; i++) {
-        if (i > 0 && !chat.fast) await chatWait(Math.min(2800, 800 + lines[i - 1][2].length * 50)); // 前の台詞を読む時間
-        if (chat.token !== token) return;
-        log.appendChild(chatLineEl(...lines[i]));
-        if (isStage()) {
-          const char = lines[i][0] === 'renko' ? 'renko' : 'maribel';
-          setPortrait(char, lines[i][1]);
-          if (!chat.fast) nudge(char, 'speaking', 900);
-        }
-      }
-      $('chat-count').textContent = L.ui.chatNext(p.h < CHAT_SWITCH_HOUR, CHAT_SWITCH_HOUR);
-    })();
+    chat.lines = typeof t.ep.lines === 'function' ? t.ep.lines(ctx) : t.ep.lines;
+    const again = $('chat-replay');
+    if (again) again.hidden = true;
+    nextChatLine();
   }
 
   // 1日1話なので、夜や観察地を切り替えても同じ日のうちは最初から流し直さない
@@ -1433,11 +1481,14 @@
       if (state.summaries.length) talkAll();
       checkArrival();
     }));
-    // 部室の雑談：タップで残りを一気に表示。画面に入ったら始める
-    $('chat-log').addEventListener('click', () => {
-      chat.fast = true;
-      if (chat.wake) chat.wake();
+    // 雑談：タップ（またはキー）で次の台詞へ。終わったら「もう一度」
+    const log = $('chat-log');
+    log.addEventListener('click', () => { if (chat.lines.length) nextChatLine(); });
+    log.addEventListener('keydown', (e) => {
+      if ((e.key === 'Enter' || e.key === ' ') && chat.lines.length) { e.preventDefault(); nextChatLine(); }
     });
+    const again = $('chat-replay');
+    if (again) again.addEventListener('click', replayChat);
     const startWhenSeen = () => {
       chat.seen = true;
       if (chat.pending) { chat.pending = false; playChat(); }

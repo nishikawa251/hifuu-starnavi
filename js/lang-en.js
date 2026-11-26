@@ -228,6 +228,9 @@
     },
     posText: (alt, dir) => (alt > 72 ? 'Nearly overhead' : `${dir} · ${Math.round(alt)}° up`),
 
+    // 雑談の速さ（ミリ秒）：type=1文字打つ間隔、pause=打ち終わってから次の行までの基本の待ち、read=1文字ぶんの読む時間
+    chatPace: { type: 22, pause: 1100, read: 12 },
+
     ui: {
       loading: 'Loading…',
       checkingClouds: 'Checking the clouds…',
@@ -268,9 +271,9 @@
       noPlanets: 'No planets well placed this night.',
       planetsOff: (names) => `Not visible this night: ${names.join(', ')} (too close to the Sun)`,
       chatTopic: (info, title) => `${info.wd} ${info.md} — ${title}`,
-      chatTapAll: 'Tap to show the rest',
+      chatProgress: (n, total) => `${n} / ${total} · Tap for the next line`,
       chatNext: (beforeSwitch, hour) => `Next chat: ${hour} AM, Kyoto time`,
-      chatWaiting: 'Waiting for the two of them to reach the club room…',
+      chatWaiting: 'Waiting for the two of them to get to the café…',
       renkoWaiting: renkoLead,
       geoUnsupported: 'This browser doesn\'t support location.',
       geoLocating: 'Locating…',

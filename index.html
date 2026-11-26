@@ -64,7 +64,7 @@
   </nav>
 
   <main class="wrap stage" id="stage">
-    <!-- 立ち絵のレール：広い画面では、二人がスクロールについてきて、下の「部室の雑談」までおりてくる
+    <!-- 立ち絵のレール：広い画面では、二人がスクロールについてきて、下の「カフェテラスの雑談」までおりてくる
          （スマホでは、js が立ち絵を各パネルの portrait-slot に移します） -->
     <div class="track track-renko" data-track="renko"><figure class="portrait" data-char="renko" aria-label="宇佐見蓮子"></figure></div>
     <div class="track track-mary" data-track="maribel"><figure class="portrait" data-char="maribel" aria-label="マエリベリー・ハーン"></figure></div>
@@ -162,16 +162,17 @@
       </div>
     </section>
 
-    <!-- ============ 部室の雑談（二人の掛け合い） ============ -->
+    <!-- ============ カフェテラスの雑談（二人の掛け合い） ============ -->
     <section class="panel chat-panel" id="chat" aria-label="二人の掛け合い">
       <div class="chat-body">
         <div class="chat-head">
-          <h2>部室の雑談</h2>
+          <h2>カフェテラスの雑談</h2>
           <p class="chat-sub" id="chat-topic"></p>
         </div>
-        <div class="chat-log" id="chat-log" aria-live="polite"></div>
+        <div class="chat-log" id="chat-log" aria-live="polite" tabindex="0"></div>
         <div class="chat-foot">
           <span class="chat-count" id="chat-count"></span>
+          <button type="button" class="chat-btn" id="chat-replay" hidden>もう一度聞く</button>
         </div>
       </div>
     </section>

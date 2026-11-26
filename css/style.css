@@ -140,7 +140,7 @@ main { display: grid; gap: 32px; padding: 8px 16px 48px; }
 /* ---------- 二人がついてくる舞台（広い画面） ----------
  * 立ち絵はページの下まで続くレール（.track）の中で sticky。
  * 重なり順：蓮子のパネル < 蓮子 < メリーのパネル（蓮子はこの裏を通る） < メリー
- * 二人とも最後は「部室の雑談」の左右におりてくる */
+ * 二人とも最後は「カフェテラスの雑談」の左右におりてくる */
 .track { display: none; }
 @media (min-width: 681px) {
   .stage { grid-template-columns: minmax(0, 1fr); }
@@ -153,12 +153,21 @@ main { display: grid; gap: 32px; padding: 8px 16px 48px; }
   .track { display: block; grid-column: 1; width: var(--portrait-w); pointer-events: none; }
   .track-renko { grid-row: 1 / 4; justify-self: start; z-index: 1; margin: calc(var(--pad-y) + 3px) 0 var(--pad-y) calc(var(--pad-x) + 1px); }
   .track-mary { grid-row: 2 / 4; justify-self: end; z-index: 3; margin: calc(var(--pad-y) + 3px) calc(var(--pad-x) + 1px) var(--pad-y) 0; }
-  /* 雑談は二人のあいだで。画面いっぱいの「部室」にして、二人がちゃんと横に並ぶように */
+  /* 雑談は二人のあいだで。画面いっぱいの「カフェテラス」にして、二人がちゃんと横に並ぶように */
   .stage > .chat-panel {
     display: grid; grid-template-columns: var(--portrait-w) minmax(0, 1fr) var(--portrait-w); column-gap: var(--col-gap);
-    min-height: max(calc(var(--portrait-w) * 1.5 + 2 * var(--pad-y) + 4px), calc(100vh - 140px));
+    min-height: max(calc(var(--portrait-w) * 1.5 + 2 * var(--pad-y) + 4px), min(calc(100vh - 140px), calc(var(--portrait-w) * 1.5 + 2 * var(--pad-y) + 60px)));
   }
-  .stage > .chat-panel .chat-body { grid-column: 2; min-width: 0; }
+  .stage { padding-bottom: max(32px, calc(100vh - var(--stick-top) - var(--portrait-w) * 1.5 - 2 * var(--pad-y) - 60px - 270px)); }
+  /* 会話は部屋の下のほう（二人がおりてくる位置）に置く。いちばん下までスクロールしても隠れないように */
+  .stage > .chat-panel .chat-body { grid-column: 2; min-width: 0; align-self: end; }
+  /* 広い画面では大きい立ち絵がそばにいるので、顔アイコンは出さず、吹き出しのしっぽを話している人に向ける */
+  .stage > .chat-panel .chat-face { display: none; }
+  .stage > .chat-panel .chat-line { max-width: 92%; }
+  .stage > .chat-panel .chat-line.now .chat-msg { font-size: 1.04rem; padding: 12px 18px; }
+  .stage > .chat-panel .chat-line.now .chat-msg::after { content: ''; position: absolute; top: 20px; width: 14px; height: 14px; background: inherit; transform: rotate(45deg); }
+  .stage > .chat-panel .chat-line.now.renko .chat-msg::after { left: -6px; }
+  .stage > .chat-panel .chat-line.now.mary .chat-msg::after { right: -6px; }
 }
 
 .bubble {
@@ -376,17 +385,21 @@ html.netherworld #sky-bg { filter: sepia(1) saturate(4) hue-rotate(285deg) brigh
 .error-note { color: #ffb4bd; font-size: 0.85rem; }
 .loading { color: var(--text-faint); font-size: 0.9rem; }
 
-/* ---------- 部室の雑談（掛け合い） ---------- */
+/* ---------- カフェテラスの雑談（掛け合い） ---------- */
 .chat-panel { display: block; }
 /* 上の線を、蓮子の赤からメリーの紫へのグラデーションに */
 .chat-panel::before { content: ''; position: absolute; left: 24px; right: 24px; top: 0; height: 3px; border-radius: 0 0 3px 3px; background: linear-gradient(90deg, var(--renko), var(--mary)); }
 .chat-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .chat-head h2 { font-size: 1.3rem; }
 .chat-sub { margin: 0; font-size: 0.82rem; color: var(--text-faint); }
-.chat-log { display: grid; gap: 12px; min-height: 150px; }
+.chat-log { display: grid; gap: 10px; min-height: 150px; align-content: start; }
+.chat-log:focus-visible { outline: 2px solid var(--lv4); outline-offset: 6px; border-radius: 8px; }
 .chat-line { display: flex; align-items: flex-end; gap: 10px; max-width: 86%; animation: chat-in 0.35s ease-out both; }
 .chat-line.mary { margin-left: auto; flex-direction: row-reverse; }
 @keyframes chat-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+/* ひとつ前の台詞は、うすくして上に残す */
+.chat-line.prev { opacity: 0.45; animation: chat-up 0.35s ease-out both; }
+@keyframes chat-up { from { opacity: 1; transform: translateY(12px); } to { opacity: 0.45; transform: none; } }
 .chat-face { flex: 0 0 auto; width: 52px; height: 52px; border-radius: 50%; overflow: hidden; background: rgba(255, 255, 255, 0.08); }
 .chat-line.renko .chat-face { box-shadow: 0 0 0 2px var(--renko); }
 .chat-line.mary .chat-face { box-shadow: 0 0 0 2px var(--mary); }
@@ -398,6 +411,11 @@ html.netherworld #sky-bg { filter: sepia(1) saturate(4) hue-rotate(285deg) brigh
 .chat-line.renko .chat-name { color: #d23c4d; }
 .chat-line.mary .chat-name { color: #7b52d9; }
 .chat-foot { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 16px; }
+.chat-btn {
+  font: inherit; font-size: 0.78rem; color: var(--text-dim); background: var(--card); border: 1px solid var(--line);
+  border-radius: 999px; padding: 3px 14px; cursor: pointer;
+}
+.chat-btn:hover { color: var(--text); border-color: rgba(190, 205, 255, 0.35); }
 .chat-count { font-size: 0.78rem; color: var(--text-faint); }
 .chat-log { cursor: pointer; }
 
@@ -486,8 +504,6 @@ html.splash-on { overflow: hidden; }
 /* ---------- responsive ---------- */
 @media (max-width: 900px) {
   :root { --portrait-w: 240px; --pad-y: 22px; --pad-x: 20px; --col-gap: 20px; }
-  .stage > .chat-panel .chat-face { width: 40px; height: 40px; }
-  .stage > .chat-panel .chat-line { max-width: 96%; }
 }
 @media (max-width: 680px) {
   main { padding-left: 12px; padding-right: 12px; }
@@ -525,7 +541,7 @@ html.splash-on { overflow: hidden; }
   .clock-sub { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .portrait.speaking, .portrait.hop, .bubble .caret { animation: none; }
+  .portrait.speaking, .portrait.hop, .bubble .caret, .chat-line, .chat-line.prev { animation: none; }
   .rd-stone { transition: none; }
   .nw-veil, .nw-veil.nw-leave { animation-duration: 0.01s; }
   /* 動きを減らす設定のときは、オープニングは止め絵で短く */

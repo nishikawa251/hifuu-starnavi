@@ -49,7 +49,7 @@ GitHub Pages で公開しています（main ブランチのルートをその�
 | `img/maribel/surprise.png` | 驚き | 流星群の極大の夜 |
 | `img/maribel/eyes_closed.png` | 目閉じ | 曇りの夜のひとこと |
 
-`img/face/` は「部室の雑談」（二人の掛け合い）で使う顔アイコンで、表情差分PNGの顔の部分を 160×160px に切り抜いたものです。
+`img/face/` は「カフェテラスの雑談」（二人の掛け合い）で使う顔アイコンで（スマホのときだけ表示）、表情差分PNGの顔の部分を 160×160px に切り抜いたものです。
 
 `img/splash/renko.png` と `img/splash/maribel.png` は、オープニング用に立ち絵（微笑）の形だけを一色で塗りつぶしたシルエットです。
 
@@ -75,20 +75,22 @@ GitHub Pages で公開しています（main ブランチのルートをその�
 
 | URL | 台詞 |
 |---|---|
-| `https://nishikawa251.github.io/hifuu-starnavi/` | 原作寄り（今の版）。「部室の雑談」あり |
-| `https://nishikawa251.github.io/hifuu-starnavi/?tone=classic` | 旧版（原作寄りに書き直す前）。「部室の雑談」なし |
+| `https://nishikawa251.github.io/hifuu-starnavi/` | 原作寄り（今の版）。「カフェテラスの雑談」あり |
+| `https://nishikawa251.github.io/hifuu-starnavi/?tone=classic` | 旧版（原作寄りに書き直す前）。雑談なし |
 
 ページ上部の「台詞　原作寄り／旧版」ボタンでも切り替えられ、URL も切り替わります（日本語版のみ）。
 旧版の台詞は `js/lang-ja.js` の `renkoScriptClassic` / `maryScriptClassic` にあります。書き直す前の状態は git タグ `tone-classic` でも残しています。
 
-## 部室の雑談
+## カフェテラスの雑談
 
 `js/chats.js` に1話ずつ入っていて、1日に1話だけ表示されます（日本時間の朝6時に次の話へ）。
 話を足すときは、`window.CLUB_CHATS` に `{ title, lines: [[話す人, 表情, 台詞], ...] }` を追加するだけです。
 英語版は `js/chats-en.js`。同じ順番に並べておくと、同じ日に同じ話が出ます（話を足すときは両方に足してください）。
 
 広い画面（幅681px以上）では、蓮子とメリーの立ち絵がスクロールについてきます。
-蓮子はメリーのパネルの裏を通っておりていき、二人が「部室の雑談」の左右まで来たら雑談が始まります。雑談中は、台詞に合わせて二人の立ち絵の表情も変わります。
+蓮子はメリーのパネルの裏を通っておりていき、二人が「カフェテラスの雑談」の左右まで来たら雑談が始まります。
+雑談は1行ずつ流れて（タップで次へ）、ひとつ前の台詞だけうすく残ります。広い画面では顔アイコンは出さず、台詞に合わせて二人の立ち絵の表情が変わります。
+話す速さは `js/lang-ja.js` / `js/lang-en.js` の `chatPace` で変えられます。
 スマホでは立ち絵は各パネルの中にあり、雑談は画面に入ったら始まります。
 
 ## 英語版（/en/）
@@ -98,7 +100,7 @@ GitHub Pages で公開しています（main ブランチのルートをその�
 | ファイル | 中身 |
 |---|---|
 | `js/lang-en.js` | 画面の文言と、蓮子・メリーの台詞（英語） |
-| `js/chats-en.js` | 部室の雑談（英語） |
+| `js/chats-en.js` | カフェテラスの雑談（英語） |
 | `js/skydata-en.js` | 星・星座・流星群の英語名と、星座のひとこと |
 | `js/config.js` の `WORLD_LOCATIONS` | 世界26都市（`tz` はタイムゾーン、`f: true` は気温を °F で言う都市） |
 
@@ -130,7 +132,7 @@ css/style.css      デザイン（日本語版・英語版で共通）
 js/config.js       立ち絵のファイル名・観察地（ここを書き換えればカスタマイズできる）
 js/skydata.js      恒星・星座線・流星群のデータ
 js/skydata-en.js   その英語名
-js/chats.js        部室の雑談（1日1話）
+js/chats.js        カフェテラスの雑談（1日1話）
 js/chats-en.js     その英語版
 js/lang-ja.js      日本語版の文言と台詞（蓮子・メリーのセリフはここ）
 js/lang-en.js      英語版の文言と台詞
