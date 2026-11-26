@@ -476,74 +476,6 @@
   }
 
   /* ---------------------------------------------------------
-   * 二人がスクロールについてくる舞台（広い画面だけ）
-   *  立ち絵は、ページの下まで続く「レール」（.track）の中で sticky。
-   *  蓮子はメリーのパネルの裏を通っておりていき、二人が「カフェテラスの雑談」まで来たら雑談が始まる。
-   *  スマホでは、立ち絵を各パネルの中（.portrait-slot）に戻す
-   * --------------------------------------------------------- */
-  const stageMQ = window.matchMedia('(min-width: 681px)');
-  const isStage = () => stageMQ.matches;
-  function placePortraits() {
-    for (const char of ['renko', 'maribel']) {
-      const fig = document.querySelector(`.portrait[data-char="${char}"]`);
-      const dest = document.querySelector(isStage() ? `.track[data-track="${char}"]` : `.portrait-slot[data-slot="${char}"]`);
-      if (fig && dest && fig.parentNode !== dest) dest.appendChild(fig);
-    }
-  }
-  // 二人が雑談のところまでおりてきたか
-  function chatArrived() {
-    const panel = $('chat');
-    if (!panel || panel.hidden || document.documentElement.classList.contains('splash-on')) return false;
-    const r = panel.getBoundingClientRect();
-    const vh = window.innerHeight;
-    if (isStage()) {
-      const fig = document.querySelector('.portrait[data-char="maribel"]');
-      const top = (fig && parseFloat(getComputedStyle(fig).top)) || 64;
-      const atBottom = vh + window.scrollY >= document.documentElement.scrollHeight - 4;
-      return r.top <= top + 48 || (atBottom && r.top < vh * 0.7);
-    }
-    const vis = Math.min(r.bottom, vh) - Math.max(r.top, 0);
-    return vis >= Math.min(r.height, vh) * 0.35;
-  }
-  // 立ち絵を一瞬だけ動かす（hop=着地、speaking=しゃべる）
-  function nudge(char, cls, ms) {
-    const fig = document.querySelector(`.portrait[data-char="${char}"]`);
-    if (!fig || REDUCE_MOTION) return;
-    fig.classList.remove(cls);
-    void fig.offsetWidth; // アニメーションを最初から
-    fig.classList.add(cls);
-    clearTimeout(fig[`_${cls}`]);
-    fig[`_${cls}`] = setTimeout(() => fig.classList.remove(cls), ms);
-  }
-  let checkArrival = () => {};
-
-  // 背の高い画面では、いちばん下までスクロールしても雑談の部屋が画面の上のほうまで来ない。
-  // そのぶん、最後の一画面ぶんのスクロールに合わせて二人をすーっとおろして、ちょうど一番下で部屋に着くようにする
-  function updateDrop() {
-    const figs = [...document.querySelectorAll('.track .portrait')];
-    const room = $('chat');
-    const clear = () => figs.forEach((f) => f.style.removeProperty('--drop'));
-    if (!figs.length || !room || room.hidden || !isStage()) { clear(); return; }
-    const vh = window.innerHeight;
-    const r = room.getBoundingClientRect();
-    const cs = getComputedStyle(room);
-    const inset = parseFloat(cs.paddingTop) + parseFloat(cs.borderTopWidth);
-    const stick = parseFloat(getComputedStyle(figs[0]).top) || 64;
-    // いちばん下までスクロールしたときの部屋の上端（画面の中）。会話が伸びても変わらないよう、部屋のいちばん低い高さで計算
-    const minH = parseFloat(cs.minHeight) || r.height;
-    const below = document.documentElement.scrollHeight - (r.bottom + window.scrollY); // 部屋の下（地面とクレジット）
-    const land = vh - (minH + below);
-    // 二人の位置は「今、部屋の上端が画面のどこにあるか」だけで決める（ページの長さには左右されない）
-    let drop = 0;
-    if (land + inset > stick && r.top < vh && land < vh) {
-      drop = r.top <= land
-        ? Math.max(0, r.top + inset - stick)                            // 着いたあとは部屋の上のほうにいる
-        : ((land + inset - stick) * (vh - r.top)) / (vh - land);        // 部屋が見えてから着くまで、すこしずつおりる
-    }
-    figs.forEach((f) => f.style.setProperty('--drop', `${drop.toFixed(1)}px`));
-  }
-
-  /* ---------------------------------------------------------
    * 台詞のバージョン切り替え（URL の ?tone= で指定。リンクを共有して見比べられる）
    *  台詞そのものは言語ファイル（L.tones）にある
    * --------------------------------------------------------- */
@@ -588,7 +520,7 @@
     chat.wake = () => { clearTimeout(t); resolve(); };
   });
 
-  // 雑談の1行。顔アイコンは、スマホと冥界の場面だけで見える（広い画面では大きい立ち絵がそばにいるので CSS で隠す）
+  // 雑談の1行（顔アイコン＋吹き出し）
   function chatLineEl(who, expr, text) {
     const div = document.createElement('div');
     div.className = `chat-line ${who === 'renko' ? 'renko' : 'mary'}`;
@@ -621,12 +553,6 @@
         if (i > 0 && !chat.fast) await chatWait(Math.min(2800, 800 + lines[i - 1][2].length * 50)); // 前の台詞を読む時間
         if (chat.token !== token) return;
         log.appendChild(chatLineEl(...lines[i]));
-        updateDrop(); // 会話が伸びるとページの長さが変わる
-        if (isStage()) { // そばにいる二人の表情も変える
-          const char = lines[i][0] === 'renko' ? 'renko' : 'maribel';
-          setPortrait(char, lines[i][1]);
-          if (!chat.fast) nudge(char, 'speaking', 900);
-        }
       }
       $('chat-count').textContent = L.ui.chatNext(p.h < CHAT_SWITCH_HOUR, CHAT_SWITCH_HOUR);
     })();
@@ -637,7 +563,7 @@
     const t = todaysChat();
     if (!t || chat.day === t.day) return;
     if (chat.seen) playChat();
-    else { chat.pending = true; showChatWaiting(); } // 二人が来たら始める
+    else { chat.pending = true; showChatWaiting(); } // 画面に入ったら始める
   }
   function showChatWaiting() {
     if (chat.day !== null) return;
@@ -1387,7 +1313,6 @@
       }, 420);
       state.introDone = true;
       if (state.summaries.length) talkAll();
-      setTimeout(() => checkArrival(), 450);
     };
     el.addEventListener('click', finish);
     document.addEventListener('keydown', finish, { once: true });
@@ -1460,7 +1385,6 @@
       if (b.dataset.tone === state.tone) return;
       applyTone(b.dataset.tone, { updateURL: true });
       if (state.summaries.length) talkAll();
-      checkArrival();
     }));
     // 雑談：タップ（またはキー）で残りを一気に表示
     const log = $('chat-log');
@@ -1471,27 +1395,14 @@
       chat.seen = true;
       if (chat.pending) { chat.pending = false; playChat(); }
     };
-    // 二人が雑談のところまでおりてきたら始める（スマホは、雑談が画面に入ったら）
-    let arrived = false;
-    checkArrival = () => {
-      if (arrived || !chatArrived()) return;
-      arrived = true;
-      document.documentElement.classList.add('chat-arrived');
-      if (isStage()) { nudge('renko', 'hop', 700); nudge('maribel', 'hop', 700); }
+    // 雑談が画面に入ったら始める
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver((entries, obs) => {
+        if (entries.some((e) => e.isIntersecting)) { startWhenSeen(); obs.disconnect(); }
+      }, { threshold: 0.35 }).observe($('chat'));
+    } else {
       startWhenSeen();
-    };
-    let ticking = false;
-    window.addEventListener('scroll', () => {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(() => { ticking = false; updateDrop(); checkArrival(); });
-    }, { passive: true });
-    window.addEventListener('resize', () => { updateDrop(); checkArrival(); });
-    if ('ResizeObserver' in window) new ResizeObserver(() => updateDrop()).observe($('stage'));
-    const onStageChange = () => { placePortraits(); updateDrop(); checkArrival(); };
-    if (stageMQ.addEventListener) stageMQ.addEventListener('change', onStageChange);
-    else if (stageMQ.addListener) stageMQ.addListener(onStageChange);
-    placePortraits();
+    }
     initGrave();
     // 各パネルの中のタブ切り替え
     document.querySelectorAll('.subtabs').forEach((tabs) => {

@@ -60,15 +60,10 @@
     <div class="tabs" id="night-tabs" role="tablist"></div>
   </nav>
 
-  <main class="wrap stage" id="stage">
-    <!-- 立ち絵のレール：広い画面では、二人がスクロールについてきて、下の「カフェテラスの雑談」までおりてくる
-         （スマホでは、js が立ち絵を各パネルの portrait-slot に移します） -->
-    <div class="track track-renko" data-track="renko"><figure class="portrait" data-char="renko" aria-label="宇佐見蓮子"></figure></div>
-    <div class="track track-mary" data-track="maribel"><figure class="portrait" data-char="maribel" aria-label="マエリベリー・ハーン"></figure></div>
-
+  <main class="wrap">
     <!-- ============ 蓮子の星空予報 ============ -->
     <section class="panel renko-panel" id="renko">
-      <div class="portrait-slot" data-slot="renko"></div>
+      <figure class="portrait" data-char="renko" aria-label="宇佐見蓮子"></figure>
       <h2 class="stage-head"><span class="who">蓮子</span>の星空予報</h2>
       <div class="bubble" id="renko-bubble" aria-live="polite"></div>
 
@@ -112,7 +107,7 @@
 
     <!-- ============ メリーの星空案内 ============ -->
     <section class="panel mary-panel" id="mary">
-      <div class="portrait-slot" data-slot="maribel"></div>
+      <figure class="portrait" data-char="maribel" aria-label="マエリベリー・ハーン"></figure>
       <h2 class="stage-head"><span class="who">メリー</span>の星空案内</h2>
       <div class="bubble" id="mary-bubble" aria-live="polite"></div>
 

@@ -23,7 +23,6 @@
   --pad-y: 24px;        /* パネルの内側の余白（たて・よこ） */
   --pad-x: 28px;
   --col-gap: 28px;      /* 立ち絵と中身のあいだ */
-  --stick-top: 64px;    /* 立ち絵がくっつく位置（上のタブの下） */
   --font-body: 'Zen Kaku Gothic New', 'Hiragino Sans', 'Yu Gothic', sans-serif;
   --font-head: 'Shippori Mincho B1', 'Hiragino Mincho ProN', 'Yu Mincho', serif;
   color-scheme: dark;
@@ -115,10 +114,8 @@ main { display: grid; gap: 32px; padding: 8px 16px 48px; }
 .mary-panel .who { color: var(--mary); }
 .stage-body { grid-area: body; min-width: 0; display: grid; gap: 14px; align-content: start; }
 
-/* パネルの中の立ち絵の場所（広い画面では空けておくだけ。立ち絵本体はレールの中） */
-.portrait-slot { grid-area: portrait; align-self: start; width: 100%; aspect-ratio: 2 / 3; }
 .portrait {
-  position: sticky; top: var(--stick-top);
+  grid-area: portrait; align-self: start; position: sticky; top: 64px;
   margin: 0; width: 100%; aspect-ratio: 2 / 3; overflow: hidden;
   -webkit-mask-image: linear-gradient(to bottom, #000 80%, transparent 100%);
   mask-image: linear-gradient(to bottom, #000 80%, transparent 100%);
@@ -133,42 +130,6 @@ main { display: grid; gap: 32px; padding: 8px 16px 48px; }
 .portrait svg { width: 100%; height: 100%; display: block; }
 .portrait.speaking { animation: bob 1.6s ease-in-out infinite; }
 @keyframes bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
-/* 雑談のところに着いたときの、小さなジャンプ */
-.portrait.hop { animation: hop 0.7s ease-out; }
-@keyframes hop { 0%, 100% { translate: 0 0; } 30% { translate: 0 -16px; } 60% { translate: 0 0; } 78% { translate: 0 -5px; } }
-
-/* ---------- 二人がついてくる舞台（広い画面） ----------
- * 立ち絵はページの下まで続くレール（.track）の中で sticky。
- * 重なり順：蓮子のパネル < 蓮子 < メリーのパネル（蓮子はこの裏を通る） < メリー
- * 二人とも最後は「カフェテラスの雑談」の左右におりてくる */
-.track { display: none; }
-@media (min-width: 681px) {
-  .stage { grid-template-columns: minmax(0, 1fr); }
-  .stage > .renko-panel { grid-row: 1; grid-column: 1; }
-  .stage > .mary-panel {
-    grid-row: 2; grid-column: 1; z-index: 2;
-    background: linear-gradient(180deg, #111842, #0a0f2a);
-  }
-  .stage > .chat-panel { grid-row: 3; grid-column: 1; }
-  .track { display: block; grid-column: 1; width: var(--portrait-w); pointer-events: none; }
-  .track-renko { grid-row: 1 / 4; justify-self: start; z-index: 1; margin: calc(var(--pad-y) + 3px) 0 var(--pad-y) calc(var(--pad-x) + 1px); }
-  .track-mary { grid-row: 2 / 4; justify-self: end; z-index: 3; margin: calc(var(--pad-y) + 3px) calc(var(--pad-x) + 1px) var(--pad-y) 0; }
-  /* 雑談は二人のあいだで。画面いっぱいの「カフェテラス」にして、二人がちゃんと横に並ぶように */
-  .stage > .chat-panel {
-    display: grid; grid-template-columns: var(--portrait-w) minmax(0, 1fr) var(--portrait-w); column-gap: var(--col-gap);
-    min-height: max(calc(var(--portrait-w) * 1.5 + 2 * var(--pad-y) + 4px), min(calc(100vh - 140px), calc(var(--portrait-w) * 1.5 + 2 * var(--pad-y) + 60px)));
-  }
-  .stage { padding-bottom: 32px; }
-  /* 背の高い画面で、最後のスクロールに合わせて二人を雑談の部屋までおろす量（js が --drop を入れる） */
-  .track .portrait { transform: translateY(var(--drop, 0px)); }
-  .stage > .chat-panel .chat-body { grid-column: 2; min-width: 0; }
-  /* 広い画面では大きい立ち絵がそばにいるので、顔アイコンは出さず、吹き出しのしっぽを話している人に向ける */
-  .stage > .chat-panel .chat-face { display: none; }
-  .stage > .chat-panel .chat-line { max-width: 92%; }
-  .stage > .chat-panel .chat-msg::after { content: ''; position: absolute; top: 16px; width: 12px; height: 12px; background: inherit; transform: rotate(45deg); }
-  .stage > .chat-panel .chat-line.renko .chat-msg::after { left: -5px; }
-  .stage > .chat-panel .chat-line.mary .chat-msg::after { right: -5px; }
-}
 
 .bubble {
   grid-area: bubble; position: relative; background: rgba(255, 255, 255, 0.95); color: #1b1f3a; border-radius: 20px;
@@ -397,7 +358,9 @@ html.netherworld #sky-bg { filter: sepia(1) saturate(4) hue-rotate(285deg) brigh
 .chat-line { display: flex; align-items: flex-end; gap: 10px; max-width: 86%; animation: chat-in 0.35s ease-out both; }
 .chat-line.mary { margin-left: auto; flex-direction: row-reverse; }
 @keyframes chat-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.chat-face { flex: 0 0 auto; width: 52px; height: 52px; border-radius: 50%; overflow: hidden; background: rgba(255, 255, 255, 0.08); }
+/* 顔アイコン。パソコンでは大きめに（スマホは下の @media で小さく） */
+.chat-face { flex: 0 0 auto; width: 88px; height: 88px; border-radius: 50%; overflow: hidden; background: rgba(255, 255, 255, 0.08); }
+.chat-line { gap: 14px; }
 .chat-line.renko .chat-face { box-shadow: 0 0 0 2px var(--renko); }
 .chat-line.mary .chat-face { box-shadow: 0 0 0 2px var(--mary); }
 .chat-face img { width: 100%; height: 100%; display: block; }
@@ -496,6 +459,7 @@ html.splash-on { overflow: hidden; }
 /* ---------- responsive ---------- */
 @media (max-width: 900px) {
   :root { --portrait-w: 240px; --pad-y: 22px; --pad-x: 20px; --col-gap: 20px; }
+  .chat-face { width: 72px; height: 72px; }
 }
 @media (max-width: 680px) {
   main { padding-left: 12px; padding-right: 12px; }
@@ -507,9 +471,8 @@ html.splash-on { overflow: hidden; }
     grid-template-areas: "head" "portrait" "bubble" "body";
     grid-template-rows: auto;
   }
-  .portrait-slot { width: 64%; justify-self: start; aspect-ratio: auto; }
-  .mary-panel .portrait-slot { justify-self: end; }
-  .portrait-slot .portrait { position: relative; top: 0; }
+  .portrait { position: relative; top: 0; width: 64%; justify-self: start; }
+  .mary-panel .portrait { justify-self: end; }
   .bubble { margin-top: -44px; z-index: 1; padding: 14px 16px; font-size: 0.93rem; line-height: 1.8; min-height: 0; }
   .bubble .lead { font-size: 1.05rem; }
   .bubble::after { top: -8px; }
@@ -533,7 +496,7 @@ html.splash-on { overflow: hidden; }
   .clock-sub { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .portrait.speaking, .portrait.hop, .bubble .caret, .chat-line { animation: none; }
+  .portrait.speaking, .bubble .caret, .chat-line { animation: none; }
   .rd-stone { transition: none; }
   .nw-veil, .nw-veil.nw-leave { animation-duration: 0.01s; }
   /* 動きを減らす設定のときは、オープニングは止め絵で短く */
