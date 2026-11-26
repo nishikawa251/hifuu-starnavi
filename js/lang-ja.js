@@ -374,6 +374,28 @@
       jmaPops: (p1, p2) => [p1 != null ? `18-24時 ${p1}%` : null, p2 != null ? `0-6時 ${p2}%` : null].filter(Boolean).join(' / '),
     },
 
+    // ページのいちばん下の墓石（蓮台野夜行にちなんだイースターエッグ）
+    grave: {
+      label: '古い墓石',
+      // 丑三つ時以外に一回転させたときのひとこと（回すたびに次へ）
+      hints: [
+        ['renko', '……何も起きないわね'],
+        ['maribel', 'こういうのは、時間が決まってるのよ。丑三つ時とか'],
+        ['renko', '星図の時計を、丑三つ時に合わせてから回してみたら？'],
+      ],
+      title: '冥界の入口',
+      place: '蓮台野 ・ 丑三つ時',
+      // month は京都（日本時間）の今の月
+      lines: (month) => [
+        ['maribel', 'surprise', '……蓮子、見て。桜が咲いてる'],
+        ['renko', 'surprise', month === 3 || month === 4 ? '……満開ね。ここ、墓地だけど' : `${month}月よ？`],
+        ['maribel', 'eyes_closed', '向こう側の桜よ。……境界が、開いちゃったみたい'],
+        ['renko', 'panic', '待って、星が読めない。……この空、日本標準時じゃないわ'],
+        ['maribel', 'smile', '長居はしないほうがよさそうね。戻りましょう、蓮子'],
+      ],
+      back: '戻る',
+    },
+
     // 台詞のバージョン（URL の ?tone= で指定。リンクを共有して見比べられる）
     tones: {
       hifuu: { label: '原作寄り', renko: renkoScript, mary: maryScript, chat: true },

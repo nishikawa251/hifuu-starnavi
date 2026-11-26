@@ -382,7 +382,8 @@
     const cfg = (window.CHARACTER_IMAGES || {})[char] || {};
     const crop = (window.PORTRAIT_CROP || {})[char] || {};
     const seq = (portraitSeq[char] = (portraitSeq[char] || 0) + 1);
-    for (const url of [cfg[expr], cfg.normal].filter(Boolean)) {
+    const want = cfg[expr] || (expr ? `img/${char}/${expr}.png` : null);
+    for (const url of [want, cfg.normal].filter(Boolean)) {
       const ok = await probe(url);
       if (seq !== portraitSeq[char]) return; // あとから別の表情が指定された
       if (ok) {
@@ -475,6 +476,48 @@
   }
 
   /* ---------------------------------------------------------
+   * 二人がスクロールについてくる舞台（広い画面だけ）
+   *  立ち絵は、ページの下まで続く「レール」（.track）の中で sticky。
+   *  蓮子はメリーのパネルの裏を通っておりていき、二人が「部室の雑談」まで来たら雑談が始まる。
+   *  スマホでは、立ち絵を各パネルの中（.portrait-slot）に戻す
+   * --------------------------------------------------------- */
+  const stageMQ = window.matchMedia('(min-width: 681px)');
+  const isStage = () => stageMQ.matches;
+  function placePortraits() {
+    for (const char of ['renko', 'maribel']) {
+      const fig = document.querySelector(`.portrait[data-char="${char}"]`);
+      const dest = document.querySelector(isStage() ? `.track[data-track="${char}"]` : `.portrait-slot[data-slot="${char}"]`);
+      if (fig && dest && fig.parentNode !== dest) dest.appendChild(fig);
+    }
+  }
+  // 二人が雑談のところまでおりてきたか
+  function chatArrived() {
+    const panel = $('chat');
+    if (!panel || panel.hidden || document.documentElement.classList.contains('splash-on')) return false;
+    const r = panel.getBoundingClientRect();
+    const vh = window.innerHeight;
+    if (isStage()) {
+      const fig = document.querySelector('.portrait[data-char="maribel"]');
+      const top = (fig && parseFloat(getComputedStyle(fig).top)) || 64;
+      const atBottom = vh + window.scrollY >= document.documentElement.scrollHeight - 4;
+      return r.top <= top + 48 || (atBottom && r.top < vh * 0.7);
+    }
+    const vis = Math.min(r.bottom, vh) - Math.max(r.top, 0);
+    return vis >= Math.min(r.height, vh) * 0.35;
+  }
+  // 立ち絵を一瞬だけ動かす（hop=着地、speaking=しゃべる）
+  function nudge(char, cls, ms) {
+    const fig = document.querySelector(`.portrait[data-char="${char}"]`);
+    if (!fig || REDUCE_MOTION) return;
+    fig.classList.remove(cls);
+    void fig.offsetWidth; // アニメーションを最初から
+    fig.classList.add(cls);
+    clearTimeout(fig[`_${cls}`]);
+    fig[`_${cls}`] = setTimeout(() => fig.classList.remove(cls), ms);
+  }
+  let checkArrival = () => {};
+
+  /* ---------------------------------------------------------
    * 台詞のバージョン切り替え（URL の ?tone= で指定。リンクを共有して見比べられる）
    *  台詞そのものは言語ファイル（L.tones）にある
    * --------------------------------------------------------- */
@@ -550,6 +593,11 @@
         if (i > 0 && !chat.fast) await chatWait(Math.min(2800, 800 + lines[i - 1][2].length * 50)); // 前の台詞を読む時間
         if (chat.token !== token) return;
         log.appendChild(chatLineEl(...lines[i]));
+        if (isStage()) {
+          const char = lines[i][0] === 'renko' ? 'renko' : 'maribel';
+          setPortrait(char, lines[i][1]);
+          if (!chat.fast) nudge(char, 'speaking', 900);
+        }
       }
       $('chat-count').textContent = L.ui.chatNext(p.h < CHAT_SWITCH_HOUR, CHAT_SWITCH_HOUR);
     })();
@@ -560,7 +608,7 @@
     const t = todaysChat();
     if (!t || chat.day === t.day) return;
     if (chat.seen) playChat();
-    else chat.pending = true; // 画面に入ったら始める
+    else { chat.pending = true; showChatWaiting(); } // 二人が来たら始める
   }
   function showChatWaiting() {
     if (chat.day !== null) return;
@@ -1051,7 +1099,7 @@
       btn.disabled = false;
       btn.textContent = U.here;
       const { latitude: lat, longitude: lon } = pos.coords;
-      const loc = { id: 'here', name: U.here, lat, lon, tz: BROWSER_TZ };
+      const loc = { id: 'here', name: U.here, lat, lon, tz: BROWSER_TZ, f: /^en-US$/i.test(navigator.language || '') };
       // 日本にいるときは、いちばん近い都市の気象庁の予報区を使う
       if (L.jma && BROWSER_TZ === 'Asia/Tokyo') {
         const near = window.LOCATIONS.reduce((a, b) => (Math.hypot(b.lat - lat, b.lon - lon) < Math.hypot(a.lat - lat, a.lon - lon) ? b : a));
@@ -1095,6 +1143,204 @@
   }
 
   /* ---------------------------------------------------------
+   * 蓮台野の墓石（イースターエッグ。蓮台野夜行にちなんで）
+   *  ページのいちばん下の墓石を一回転させると……丑三つ時（2:00〜2:30）なら冥界の入口が開く。
+   *  観察地の今の時刻か、メリーの星図の時刻（スライダー）のどちらかが丑三つ時ならOK
+   * --------------------------------------------------------- */
+  const GRAVE_KEY = 'hifuu-starnavi:rendaino';
+  function isUshimitsu() {
+    const p = localParts(new Date());
+    if (p.h === 2 && p.mi < 30) return true;
+    const m = (SLIDER_START_MIN + state.step * SLIDER_STEP_MIN) % 1440;
+    return m >= 120 && m <= 150;
+  }
+
+  function initGrave() {
+    const btn = $('grave');
+    const G = L.grave;
+    if (!btn || !G) return;
+    const stone = btn.querySelector('.rd-stone');
+    const say = $('grave-say');
+    try { if (localStorage.getItem(GRAVE_KEY)) btn.classList.add('rd-found'); } catch (e) { /* noop */ }
+    let rot = 0;        // 今の向き（度）
+    let turned = 0;     // 回した量の合計（行って戻すと打ち消し合う）
+    let drag = null;
+    let skipClick = false;
+    let hint = 0;
+    let sayTimer = null;
+    const show = (anim) => {
+      stone.style.transition = anim ? '' : 'none';
+      stone.style.transform = `rotateY(${rot}deg)`;
+    };
+    const speakHint = () => {
+      const [who, text] = G.hints[Math.min(hint, G.hints.length - 1)];
+      hint++;
+      say.innerHTML = `<span class="chat-name ${who === 'renko' ? 'renko' : 'mary'}">${L.short[who]}</span>${esc(text)}`;
+      say.classList.add('show');
+      clearTimeout(sayTimer);
+      sayTimer = setTimeout(() => say.classList.remove('show'), 6000);
+    };
+    const check = () => {
+      if (Math.abs(turned) < 359) return;
+      turned = 0;
+      if (isUshimitsu()) {
+        say.classList.remove('show');
+        openNetherworld();
+      } else {
+        speakHint();
+      }
+    };
+    // ドラッグで回す（横に引っぱる）。タップやキーボードなら90度ずつ
+    btn.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      skipClick = false;
+      drag = { x: e.clientX, rot, moved: false };
+      if (btn.setPointerCapture) btn.setPointerCapture(e.pointerId);
+    });
+    btn.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const dx = e.clientX - drag.x;
+      if (!drag.moved && Math.abs(dx) < 5) return;
+      drag.moved = true;
+      const next = drag.rot + dx * 2;
+      turned += next - rot;
+      rot = next;
+      show(false);
+    });
+    const end = () => {
+      if (!drag) return;
+      const { moved } = drag;
+      drag = null;
+      if (!moved) return;
+      skipClick = true;
+      const snapped = Math.round(rot / 90) * 90;
+      turned += snapped - rot;
+      rot = snapped;
+      show(true);
+      check();
+    };
+    btn.addEventListener('pointerup', end);
+    btn.addEventListener('pointercancel', end);
+    btn.addEventListener('click', () => {
+      if (skipClick) { skipClick = false; return; }
+      rot += 90;
+      turned += 90;
+      show(true);
+      check();
+    });
+  }
+
+  // 冥界の桜吹雪（canvas）。止める関数を返す
+  function petals(canvas) {
+    const ctx = canvas.getContext('2d');
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    let w = 0;
+    let h = 0;
+    let raf = 0;
+    let alive = true;
+    const fit = () => {
+      w = window.innerWidth;
+      h = window.innerHeight;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    const n = Math.round(clamp((w * h) / 12000, 30, 110));
+    const ps = Array.from({ length: n }, () => ({
+      x: Math.random() * w, y: -Math.random() * h, s: 4 + Math.random() * 5, vy: 0.6 + Math.random() * 1.1, vx: 0.2 + Math.random() * 0.7,
+      a: Math.random() * 6.28, va: (Math.random() - 0.5) * 0.06, sw: Math.random() * 6.28, c: Math.random() < 0.5 ? '#ffd1df' : '#ffb9cf',
+    }));
+    const draw = () => {
+      ctx.clearRect(0, 0, w, h);
+      for (const p of ps) {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.a);
+        ctx.scale(1, 0.55 + 0.45 * Math.abs(Math.sin(p.sw)));
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = p.c;
+        ctx.beginPath();
+        ctx.moveTo(0, p.s);
+        ctx.bezierCurveTo(p.s * 0.95, p.s * 0.4, p.s * 0.8, -p.s * 0.8, p.s * 0.22, -p.s);
+        ctx.lineTo(0, -p.s * 0.72); // 花びらの先の切れ込み
+        ctx.lineTo(-p.s * 0.22, -p.s);
+        ctx.bezierCurveTo(-p.s * 0.8, -p.s * 0.8, -p.s * 0.95, p.s * 0.4, 0, p.s);
+        ctx.fill();
+        ctx.restore();
+      }
+    };
+    const step = () => {
+      if (!alive) return;
+      for (const p of ps) {
+        p.sw += 0.025;
+        p.a += p.va;
+        p.x += p.vx + Math.sin(p.sw) * 0.7;
+        p.y += p.vy;
+        if (p.y > h + 20 || p.x > w + 20) { p.y = -20; p.x = Math.random() * w * 1.2 - w * 0.2; }
+      }
+      draw();
+      raf = requestAnimationFrame(step);
+    };
+    if (REDUCE_MOTION) {
+      ps.forEach((p) => { p.y = Math.random() * h; });
+      draw();
+    } else {
+      raf = requestAnimationFrame(step);
+    }
+    return () => { alive = false; cancelAnimationFrame(raf); window.removeEventListener('resize', fit); };
+  }
+
+  function openNetherworld() {
+    if (document.querySelector('.nw-veil')) return;
+    const G = L.grave;
+    const root = document.documentElement;
+    const veil = document.createElement('div');
+    veil.className = 'nw-veil';
+    veil.innerHTML = `<canvas class="nw-petals" aria-hidden="true"></canvas>
+      <div class="nw-card" role="dialog" aria-modal="true" aria-label="${esc(G.title)}">
+        <p class="nw-place">${esc(G.place)}</p>
+        <div class="nw-lines" aria-live="polite"></div>
+        <button type="button" class="nw-back">${esc(G.back)}</button>
+      </div>`;
+    document.body.appendChild(veil);
+    root.classList.add('netherworld');
+    const stop = petals(veil.querySelector('canvas'));
+    const box = veil.querySelector('.nw-lines');
+    const back = veil.querySelector('.nw-back');
+    const card = veil.querySelector('.nw-card');
+    const lines = G.lines(localParts(new Date(), 'Asia/Tokyo').mo); // 二人がいるのは京都なので、京都の今の月
+    (async () => {
+      for (let i = 0; i < lines.length; i++) {
+        await sleep(REDUCE_MOTION ? 0 : i === 0 ? 1300 : 1900);
+        if (!veil.isConnected || veil.classList.contains('nw-leave')) return;
+        box.appendChild(chatLineEl(...lines[i]));
+        card.scrollTop = card.scrollHeight;
+      }
+      back.classList.add('ready');
+      card.scrollTop = card.scrollHeight;
+    })();
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    function close() {
+      if (veil.classList.contains('nw-leave')) return;
+      document.removeEventListener('keydown', onKey);
+      veil.classList.add('nw-leave');
+      root.classList.remove('netherworld');
+      setTimeout(() => { stop(); veil.remove(); }, 900);
+      try { localStorage.setItem(GRAVE_KEY, '1'); } catch (e) { /* noop */ }
+      const grave = $('grave');
+      if (grave) {
+        grave.classList.add('rd-found'); // 見つけた印に、墓石に花びらが一枚残る
+        grave.focus({ preventScroll: true });
+      }
+    }
+    document.addEventListener('keydown', onKey);
+    back.addEventListener('click', close);
+    back.focus({ preventScroll: true });
+  }
+
+  /* ---------------------------------------------------------
    * オープニング（CSS アニメーション。ここでは終わりの合図とスキップだけ扱う）
    * --------------------------------------------------------- */
   function initSplash() {
@@ -1112,6 +1358,7 @@
       }, 420);
       state.introDone = true;
       if (state.summaries.length) talkAll();
+      setTimeout(() => checkArrival(), 450);
     };
     el.addEventListener('click', finish);
     document.addEventListener('keydown', finish, { once: true });
@@ -1184,24 +1431,38 @@
       if (b.dataset.tone === state.tone) return;
       applyTone(b.dataset.tone, { updateURL: true });
       if (state.summaries.length) talkAll();
+      checkArrival();
     }));
     // 部室の雑談：タップで残りを一気に表示。画面に入ったら始める
     $('chat-log').addEventListener('click', () => {
       chat.fast = true;
       if (chat.wake) chat.wake();
     });
-    const chatPanel = $('chat');
     const startWhenSeen = () => {
       chat.seen = true;
       if (chat.pending) { chat.pending = false; playChat(); }
     };
-    if ('IntersectionObserver' in window) {
-      new IntersectionObserver((entries, obs) => {
-        if (entries.some((e) => e.isIntersecting)) { startWhenSeen(); obs.disconnect(); }
-      }, { threshold: 0.35 }).observe(chatPanel);
-    } else {
+    // 二人が雑談のところまでおりてきたら始める（スマホは、雑談が画面に入ったら）
+    let arrived = false;
+    checkArrival = () => {
+      if (arrived || !chatArrived()) return;
+      arrived = true;
+      document.documentElement.classList.add('chat-arrived');
+      if (isStage()) { nudge('renko', 'hop', 700); nudge('maribel', 'hop', 700); }
       startWhenSeen();
-    }
+    };
+    let ticking = false;
+    window.addEventListener('scroll', () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => { ticking = false; checkArrival(); });
+    }, { passive: true });
+    window.addEventListener('resize', () => checkArrival());
+    const onStageChange = () => { placePortraits(); checkArrival(); };
+    if (stageMQ.addEventListener) stageMQ.addEventListener('change', onStageChange);
+    else if (stageMQ.addListener) stageMQ.addListener(onStageChange);
+    placePortraits();
+    initGrave();
     // 各パネルの中のタブ切り替え
     document.querySelectorAll('.subtabs').forEach((tabs) => {
       const group = tabs.dataset.group;

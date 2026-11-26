@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>秘封倶楽部の星空ナビ</title>
   <meta name="description" content="宇佐見蓮子とマエリベリー・ハーンが、明日の星空予報と見える星を案内する東方Project二次創作サイト。">
+  <link rel="alternate" hreflang="ja" href="https://nishikawa251.github.io/hifuu-starnavi/">
+  <link rel="alternate" hreflang="en" href="https://nishikawa251.github.io/hifuu-starnavi/en/">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
@@ -43,6 +45,7 @@
           <select id="loc-select"></select>
         </label>
         <button type="button" id="geo-btn" class="ghost-btn" title="現在地を使う">現在地</button>
+        <a class="ghost-btn lang-link" href="en/" hreflang="en" lang="en">English</a>
       </div>
     </div>
     <p class="wrap star-clock">
@@ -60,10 +63,15 @@
     <div class="tabs" id="night-tabs" role="tablist"></div>
   </nav>
 
-  <main class="wrap">
+  <main class="wrap stage" id="stage">
+    <!-- 立ち絵のレール：広い画面では、二人がスクロールについてきて、下の「部室の雑談」までおりてくる
+         （スマホでは、js が立ち絵を各パネルの portrait-slot に移します） -->
+    <div class="track track-renko" data-track="renko"><figure class="portrait" data-char="renko" aria-label="宇佐見蓮子"></figure></div>
+    <div class="track track-mary" data-track="maribel"><figure class="portrait" data-char="maribel" aria-label="マエリベリー・ハーン"></figure></div>
+
     <!-- ============ 蓮子の星空予報 ============ -->
     <section class="panel renko-panel" id="renko">
-      <figure class="portrait" data-char="renko" aria-label="宇佐見蓮子"></figure>
+      <div class="portrait-slot" data-slot="renko"></div>
       <h2 class="stage-head"><span class="who">蓮子</span>の星空予報</h2>
       <div class="bubble" id="renko-bubble" aria-live="polite"></div>
 
@@ -107,7 +115,7 @@
 
     <!-- ============ メリーの星空案内 ============ -->
     <section class="panel mary-panel" id="mary">
-      <figure class="portrait" data-char="maribel" aria-label="マエリベリー・ハーン"></figure>
+      <div class="portrait-slot" data-slot="maribel"></div>
       <h2 class="stage-head"><span class="who">メリー</span>の星空案内</h2>
       <div class="bubble" id="mary-bubble" aria-live="polite"></div>
 
@@ -156,18 +164,31 @@
 
     <!-- ============ 部室の雑談（二人の掛け合い） ============ -->
     <section class="panel chat-panel" id="chat" aria-label="二人の掛け合い">
-      <div class="chat-head">
-        <h2>部室の雑談</h2>
-        <p class="chat-sub" id="chat-topic"></p>
-      </div>
-      <div class="chat-log" id="chat-log" aria-live="polite"></div>
-      <div class="chat-foot">
-        <span class="chat-count" id="chat-count"></span>
+      <div class="chat-body">
+        <div class="chat-head">
+          <h2>部室の雑談</h2>
+          <p class="chat-sub" id="chat-topic"></p>
+        </div>
+        <div class="chat-log" id="chat-log" aria-live="polite"></div>
+        <div class="chat-foot">
+          <span class="chat-count" id="chat-count"></span>
+        </div>
       </div>
     </section>
   </main>
 
   <footer class="site-footer">
+    <!-- 蓮台野（ページのいちばん下の地面）。墓石は回せる -->
+    <div class="rendaino" aria-hidden="false">
+      <svg class="rd-grass" viewBox="0 0 1200 40" preserveAspectRatio="none" aria-hidden="true"><path d="M0 40V30l14-9 6 9 10-14 7 13 12-8 9 10 15-12 6 11 11-7 8 8 14-10 5 9 13-13 9 12 10-6 12 8 7-11 10 12 16-9 6 8 12-12 8 11 11-6 9 9 15-11 6 10 10-8 9 9 13-14 8 13 12-7 7 8 15-10 8 10 11-9 10 10 12-6 9 8 14-12 7 11 11-8 8 9 16-10 7 10 10-12 9 12 13-8 8 8 10-11 11 11 12-6 8 9 15-13 6 12 11-7 9 8 13-10 7 10 12-12 8 11 10-6 11 9 14-9 6 8 12-13 9 12 11-7 8 9 13-10 9 10 15-8 6 9 12-12 10 11 11-6 7 8 14-11 8 10 12-9 9 10 13-7 8 9 15-12 6 11 10-8 11 10 12-6 9 8 14-10 7 9 13-13 8 13 10-7 9 8 12-10 9 10 V40Z" fill="#070b20"/></svg>
+      <span class="rd-grave rd-deco rd-deco1" aria-hidden="true"><span class="rd-stone"><svg viewBox="0 0 34 56"><path d="M4 7Q4 2 9 2H25Q30 2 30 7V56H4Z"/></svg></span><span class="rd-base"><svg viewBox="0 0 54 20"><path d="M6 0H48V8H6ZM0 8H54V20H0Z"/></svg></span></span>
+      <span class="rd-grave rd-deco rd-deco2" aria-hidden="true"><span class="rd-stone"><svg viewBox="0 0 34 56"><path d="M4 7Q4 2 9 2H25Q30 2 30 7V56H4Z"/></svg></span><span class="rd-base"><svg viewBox="0 0 54 20"><path d="M6 0H48V8H6ZM0 8H54V20H0Z"/></svg></span></span>
+      <button type="button" class="rd-grave rd-main" id="grave" aria-label="古い墓石">
+        <span class="rd-stone"><svg viewBox="0 0 34 56" aria-hidden="true"><path d="M4 7Q4 2 9 2H25Q30 2 30 7V56H4Z"/><circle class="rd-mon" cx="17" cy="13" r="4.2"/><path class="rd-groove" d="M17 22V48"/></svg></span>
+        <span class="rd-base"><svg viewBox="0 0 54 20" aria-hidden="true"><path d="M6 0H48V8H6ZM0 8H54V20H0Z"/></svg></span>
+      </button>
+      <p class="rd-say" id="grave-say" aria-live="polite"></p>
+    </div>
     <div class="wrap">
       <p>本サイトは東方Project（上海アリス幻樂団）の二次創作です。公式とは関係ありません。</p>
       <ul class="credits">

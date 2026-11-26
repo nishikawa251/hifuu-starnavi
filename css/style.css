@@ -20,12 +20,17 @@
   --lv1: #464b60;
   --radius: 16px;
   --portrait-w: 300px;
+  --pad-y: 24px;        /* パネルの内側の余白（たて・よこ） */
+  --pad-x: 28px;
+  --col-gap: 28px;      /* 立ち絵と中身のあいだ */
+  --stick-top: 64px;    /* 立ち絵がくっつく位置（上のタブの下） */
   --font-body: 'Zen Kaku Gothic New', 'Hiragino Sans', 'Yu Gothic', sans-serif;
   --font-head: 'Shippori Mincho B1', 'Hiragino Mincho ProN', 'Yu Mincho', serif;
   color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
@@ -58,6 +63,8 @@ select { padding-right: 32px; appearance: none;
   background-position: calc(100% - 18px) 55%, calc(100% - 13px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }
 select option { background: var(--bg-1); color: var(--text); }
 .ghost-btn:hover, select:hover { border-color: rgba(190, 205, 255, 0.35); }
+a.ghost-btn { display: inline-block; text-decoration: none; }
+.lang-link { font-size: 0.85rem; }
 button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--lv4); outline-offset: 2px; }
 
 .star-clock { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 10px auto 0; color: var(--text-faint); font-size: 0.78rem; }
@@ -87,9 +94,9 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 /* ---------- panels: 立ち絵 + 吹き出し + 中身 ---------- */
 main { display: grid; gap: 32px; padding: 8px 16px 48px; }
 .panel {
-  position: relative; display: grid; column-gap: 28px; row-gap: 14px;
+  position: relative; display: grid; column-gap: var(--col-gap); row-gap: 14px;
   background: linear-gradient(180deg, rgba(20, 28, 74, 0.55), rgba(11, 18, 51, 0.35));
-  border: 1px solid var(--line); border-radius: 28px; padding: 24px 28px;
+  border: 1px solid var(--line); border-radius: 28px; padding: var(--pad-y) var(--pad-x);
 }
 .renko-panel {
   border-top: 3px solid var(--renko);
@@ -108,8 +115,10 @@ main { display: grid; gap: 32px; padding: 8px 16px 48px; }
 .mary-panel .who { color: var(--mary); }
 .stage-body { grid-area: body; min-width: 0; display: grid; gap: 14px; align-content: start; }
 
+/* パネルの中の立ち絵の場所（広い画面では空けておくだけ。立ち絵本体はレールの中） */
+.portrait-slot { grid-area: portrait; align-self: start; width: 100%; aspect-ratio: 2 / 3; }
 .portrait {
-  grid-area: portrait; align-self: start; position: sticky; top: 64px;
+  position: sticky; top: var(--stick-top);
   margin: 0; width: 100%; aspect-ratio: 2 / 3; overflow: hidden;
   -webkit-mask-image: linear-gradient(to bottom, #000 80%, transparent 100%);
   mask-image: linear-gradient(to bottom, #000 80%, transparent 100%);
@@ -124,6 +133,33 @@ main { display: grid; gap: 32px; padding: 8px 16px 48px; }
 .portrait svg { width: 100%; height: 100%; display: block; }
 .portrait.speaking { animation: bob 1.6s ease-in-out infinite; }
 @keyframes bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
+/* 雑談のところに着いたときの、小さなジャンプ */
+.portrait.hop { animation: hop 0.7s ease-out; }
+@keyframes hop { 0%, 100% { translate: 0 0; } 30% { translate: 0 -16px; } 60% { translate: 0 0; } 78% { translate: 0 -5px; } }
+
+/* ---------- 二人がついてくる舞台（広い画面） ----------
+ * 立ち絵はページの下まで続くレール（.track）の中で sticky。
+ * 重なり順：蓮子のパネル < 蓮子 < メリーのパネル（蓮子はこの裏を通る） < メリー
+ * 二人とも最後は「部室の雑談」の左右におりてくる */
+.track { display: none; }
+@media (min-width: 681px) {
+  .stage { grid-template-columns: minmax(0, 1fr); }
+  .stage > .renko-panel { grid-row: 1; grid-column: 1; }
+  .stage > .mary-panel {
+    grid-row: 2; grid-column: 1; z-index: 2;
+    background: linear-gradient(180deg, #111842, #0a0f2a);
+  }
+  .stage > .chat-panel { grid-row: 3; grid-column: 1; }
+  .track { display: block; grid-column: 1; width: var(--portrait-w); pointer-events: none; }
+  .track-renko { grid-row: 1 / 4; justify-self: start; z-index: 1; margin: calc(var(--pad-y) + 3px) 0 var(--pad-y) calc(var(--pad-x) + 1px); }
+  .track-mary { grid-row: 2 / 4; justify-self: end; z-index: 3; margin: calc(var(--pad-y) + 3px) calc(var(--pad-x) + 1px) var(--pad-y) 0; }
+  /* 雑談は二人のあいだで。画面いっぱいの「部室」にして、二人がちゃんと横に並ぶように */
+  .stage > .chat-panel {
+    display: grid; grid-template-columns: var(--portrait-w) minmax(0, 1fr) var(--portrait-w); column-gap: var(--col-gap);
+    min-height: max(calc(var(--portrait-w) * 1.5 + 2 * var(--pad-y) + 4px), calc(100vh - 140px));
+  }
+  .stage > .chat-panel .chat-body { grid-column: 2; min-width: 0; }
+}
 
 .bubble {
   grid-area: bubble; position: relative; background: rgba(255, 255, 255, 0.95); color: #1b1f3a; border-radius: 20px;
@@ -265,7 +301,75 @@ main { display: grid; gap: 32px; padding: 8px 16px 48px; }
 .meteor.soon { border-color: rgba(255, 217, 102, 0.5); }
 
 /* ---------- footer ---------- */
-.site-footer { border-top: 1px solid var(--line); padding: 24px 0 40px; color: var(--text-faint); font-size: 0.78rem; }
+.site-footer { padding: 0 0 40px; color: var(--text-faint); font-size: 0.78rem; }
+.site-footer > .wrap { padding-top: 20px; }
+
+/* ---------- 蓮台野（ページのいちばん下の地面と墓石） ---------- */
+.rendaino {
+  --gx: max(28px, calc(50% - 480px));   /* 墓石の右からの位置 */
+  position: relative; height: 96px; margin-top: 8px; border-bottom: 1px solid var(--line);
+  background: linear-gradient(to bottom, rgba(5, 8, 22, 0), rgba(5, 8, 22, 0.55));
+}
+.rd-grass { position: absolute; left: 0; bottom: 0; width: 100%; height: 22px; z-index: 2; pointer-events: none; }
+.rd-grave { position: absolute; bottom: 0; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 0; border: 0; background: none; }
+.rd-grave svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.rd-grave path, .rd-grave circle { fill: #151b40; stroke: rgba(190, 205, 255, 0.26); stroke-width: 1; }
+.rd-stone { position: relative; display: block; width: 30px; height: 50px; transition: transform 0.5s cubic-bezier(0.3, 0.7, 0.3, 1); }
+.rd-base { display: block; width: 46px; height: 17px; }
+.rd-main { right: var(--gx); z-index: 1; cursor: grab; perspective: 240px; touch-action: pan-y; -webkit-tap-highlight-color: transparent; }
+.rd-main:active { cursor: grabbing; }
+.rd-main .rd-mon { fill: none; stroke: rgba(190, 205, 255, 0.34); }
+.rd-main .rd-groove { fill: none; stroke: rgba(190, 205, 255, 0.16); stroke-width: 1.4; }
+.rd-main:hover .rd-stone path:first-child, .rd-main:focus-visible .rd-stone path:first-child { stroke: rgba(255, 214, 232, 0.55); }
+.rd-main:focus-visible { outline: 2px solid var(--lv4); outline-offset: 4px; border-radius: 4px; }
+.rd-deco { opacity: 0.75; transform-origin: 50% 100%; pointer-events: none; }
+.rd-deco1 { right: calc(var(--gx) + 60px); transform: scale(0.82); }
+.rd-deco2 { right: calc(var(--gx) + 108px); transform: scale(0.68); opacity: 0.6; }
+/* 冥界を見たあとは、墓石の上に花びらが一枚 */
+.rd-found .rd-stone::after {
+  content: ''; position: absolute; top: -2px; left: 56%; width: 8px; height: 6px; border-radius: 70% 30% 70% 30%;
+  background: #ffc4d6; transform: rotate(-24deg); box-shadow: 0 0 6px rgba(255, 190, 220, 0.6);
+}
+.rd-say {
+  position: absolute; right: calc(var(--gx) + 54px); bottom: 50px; z-index: 3; max-width: min(340px, calc(100% - var(--gx) - 70px));
+  margin: 0; padding: 8px 13px; border-radius: 14px 14px 4px 14px; background: rgba(255, 255, 255, 0.95); color: #1b1f3a;
+  font-size: 0.86rem; line-height: 1.6; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  opacity: 0; transform: translateY(6px); transition: opacity 0.3s, transform 0.3s; pointer-events: none;
+}
+.rd-say.show { opacity: 1; transform: none; }
+.rd-say .chat-name.renko { color: #d23c4d; }
+.rd-say .chat-name.mary { color: #7b52d9; }
+
+/* ---------- 冥界（墓石を丑三つ時に回したとき） ---------- */
+html.netherworld body { background: radial-gradient(ellipse at 50% -10%, #4b2552 0%, #24143e 40%, #0b0718 85%) fixed, #0b0718; }
+html.netherworld #sky-bg { filter: sepia(1) saturate(4) hue-rotate(285deg) brightness(1.15); }
+.nw-veil {
+  position: fixed; inset: 0; z-index: 90;
+  background: radial-gradient(ellipse at 50% 35%, rgba(255, 190, 220, 0.16), rgba(30, 8, 40, 0.6));
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  animation: nw-in 1.4s ease both;
+}
+.nw-veil.nw-leave { animation: nw-out 0.9s ease forwards; }
+@keyframes nw-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes nw-out { from { opacity: 1; } to { opacity: 0; } }
+.nw-petals { position: absolute; inset: 0; width: 100%; height: 100%; }
+.nw-card {
+  position: absolute; left: 50%; bottom: max(20px, 6vh); transform: translateX(-50%);
+  width: min(560px, calc(100% - 24px)); max-height: calc(100% - 40px); overflow: auto; overscroll-behavior: contain;
+  background: rgba(24, 12, 38, 0.97); border: 1px solid rgba(255, 190, 220, 0.35); border-radius: 22px; padding: 16px 16px 14px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 60px rgba(255, 170, 210, 0.15);
+}
+.nw-place { margin: 0 0 12px; font-family: var(--font-head); color: #ffc4d6; letter-spacing: 0.12em; font-size: 0.92rem; text-align: center; }
+.nw-lines { display: grid; gap: 8px; min-height: 60px; }
+.nw-lines .chat-face { width: 38px; height: 38px; }
+.nw-lines .chat-msg { font-size: 0.9rem; padding: 6px 12px; line-height: 1.6; }
+.nw-lines .chat-line { max-width: 94%; }
+.nw-back {
+  display: block; margin: 14px auto 0; font: inherit; font-size: 0.92rem; color: #ffe3ec; cursor: pointer;
+  background: rgba(255, 190, 220, 0.12); border: 1px solid rgba(255, 190, 220, 0.45); border-radius: 999px; padding: 7px 28px;
+  opacity: 0.5; transition: opacity 0.4s;
+}
+.nw-back.ready, .nw-back:hover, .nw-back:focus-visible { opacity: 1; }
 .site-footer p { margin: 0 0 8px; }
 .credits { margin: 0 0 8px; padding-left: 1.2em; }
 
@@ -273,7 +377,7 @@ main { display: grid; gap: 32px; padding: 8px 16px 48px; }
 .loading { color: var(--text-faint); font-size: 0.9rem; }
 
 /* ---------- 部室の雑談（掛け合い） ---------- */
-.chat-panel { display: block; padding: 22px 28px; }
+.chat-panel { display: block; }
 /* 上の線を、蓮子の赤からメリーの紫へのグラデーションに */
 .chat-panel::before { content: ''; position: absolute; left: 24px; right: 24px; top: 0; height: 3px; border-radius: 0 0 3px 3px; background: linear-gradient(90deg, var(--renko), var(--mary)); }
 .chat-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -366,6 +470,7 @@ html.splash-on { overflow: hidden; }
   font-size: clamp(1.7rem, 7.4vw, 3.5rem); letter-spacing: 0.08em;
   text-shadow: 0 0 18px rgba(143, 211, 255, 0.6), 0 0 42px rgba(185, 155, 255, 0.4);
 }
+.sp-title .sp-gap { width: 0.3em; }
 .sp-title span { display: inline-block; animation: sp-char 0.7s ease-out both; animation-delay: calc(1.3s + var(--i) * 70ms); }
 @keyframes sp-char { from { opacity: 0; transform: translateY(12px); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
 .sp-names { margin: 0; font-size: 0.82rem; color: #cdd3f3; letter-spacing: 0.08em; animation: sp-fade 0.8s ease 2.1s both; }
@@ -380,27 +485,29 @@ html.splash-on { overflow: hidden; }
 
 /* ---------- responsive ---------- */
 @media (max-width: 900px) {
-  :root { --portrait-w: 240px; }
-  .panel { column-gap: 20px; padding: 22px 20px; }
+  :root { --portrait-w: 240px; --pad-y: 22px; --pad-x: 20px; --col-gap: 20px; }
+  .stage > .chat-panel .chat-face { width: 40px; height: 40px; }
+  .stage > .chat-panel .chat-line { max-width: 96%; }
 }
 @media (max-width: 680px) {
   main { padding-left: 12px; padding-right: 12px; }
   /* スマホはゲームの会話画面ふうに：キャラを大きく上に、吹き出しを横幅いっぱいで下に */
-  .panel { padding: 18px 14px; border-radius: 22px; }
+  :root { --pad-y: 18px; --pad-x: 14px; }
+  .panel { border-radius: 22px; }
   .renko-panel, .mary-panel {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: "head" "portrait" "bubble" "body";
     grid-template-rows: auto;
   }
-  .portrait { position: relative; top: 0; width: 64%; justify-self: start; }
-  .mary-panel .portrait { justify-self: end; }
+  .portrait-slot { width: 64%; justify-self: start; aspect-ratio: auto; }
+  .mary-panel .portrait-slot { justify-self: end; }
+  .portrait-slot .portrait { position: relative; top: 0; }
   .bubble { margin-top: -44px; z-index: 1; padding: 14px 16px; font-size: 0.93rem; line-height: 1.8; min-height: 0; }
   .bubble .lead { font-size: 1.05rem; }
   .bubble::after { top: -8px; }
   .renko-panel .bubble::after { left: 30%; }
   .mary-panel .bubble::after { right: 30%; }
   .stage-head { font-size: 1.25rem; }
-  .chat-panel { padding: 18px 14px; }
   .chat-line { max-width: 94%; gap: 8px; }
   .chat-face { width: 42px; height: 42px; }
   .chat-msg { font-size: 0.92rem; padding: 8px 12px; }
@@ -418,7 +525,9 @@ html.splash-on { overflow: hidden; }
   .clock-sub { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .portrait.speaking, .bubble .caret { animation: none; }
+  .portrait.speaking, .portrait.hop, .bubble .caret { animation: none; }
+  .rd-stone { transition: none; }
+  .nw-veil, .nw-veil.nw-leave { animation-duration: 0.01s; }
   /* 動きを減らす設定のときは、オープニングは止め絵で短く */
   .splash *, .splash *::before { animation-duration: 0.01s !important; animation-delay: 0s !important; }
   .splash { animation: sp-out 0.4s ease 1.2s forwards; }
