@@ -525,16 +525,21 @@
     const clear = () => figs.forEach((f) => f.style.removeProperty('--drop'));
     if (!figs.length || !room || room.hidden || !isStage()) { clear(); return; }
     const vh = window.innerHeight;
-    const y = window.scrollY;
-    const maxScroll = document.documentElement.scrollHeight - vh;
-    const roomTop = room.getBoundingClientRect().top + y;          // ページの中での部屋の上端
+    const r = room.getBoundingClientRect();
     const cs = getComputedStyle(room);
     const inset = parseFloat(cs.paddingTop) + parseFloat(cs.borderTopWidth);
     const stick = parseFloat(getComputedStyle(figs[0]).top) || 64;
-    const need = roomTop - maxScroll + inset - stick;               // 一番下で、部屋まで足りない距離
-    const start = Math.max(0, roomTop - vh);                        // 部屋が画面の下に見えはじめた位置から
+    // いちばん下までスクロールしたときの部屋の上端（画面の中）。会話が伸びても変わらないよう、部屋のいちばん低い高さで計算
+    const minH = parseFloat(cs.minHeight) || r.height;
+    const below = document.documentElement.scrollHeight - (r.bottom + window.scrollY); // 部屋の下（地面とクレジット）
+    const land = vh - (minH + below);
+    // 二人の位置は「今、部屋の上端が画面のどこにあるか」だけで決める（ページの長さには左右されない）
     let drop = 0;
-    if (need > 0 && maxScroll > start) drop = need * clamp((y - start) / (maxScroll - start), 0, 1);
+    if (land + inset > stick && r.top < vh && land < vh) {
+      drop = r.top <= land
+        ? Math.max(0, r.top + inset - stick)                            // 着いたあとは部屋の上のほうにいる
+        : ((land + inset - stick) * (vh - r.top)) / (vh - land);        // 部屋が見えてから着くまで、すこしずつおりる
+    }
     figs.forEach((f) => f.style.setProperty('--drop', `${drop.toFixed(1)}px`));
   }
 
