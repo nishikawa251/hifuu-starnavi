@@ -49,6 +49,10 @@
       <span class="clock-label">蓮子の星時計</span>
       <span class="clock-time" id="clock-time">--:--:--</span>
       <span class="clock-sub" id="clock-sidereal"></span>
+      <span class="tone-switch" role="group" aria-label="台詞のバージョン">台詞
+        <button type="button" data-tone="hifuu" aria-pressed="true">原作寄り</button>
+        <button type="button" data-tone="classic" aria-pressed="false">旧版</button>
+      </span>
     </p>
   </header>
 
@@ -159,7 +163,6 @@
       <div class="chat-log" id="chat-log" aria-live="polite"></div>
       <div class="chat-foot">
         <span class="chat-count" id="chat-count"></span>
-        <button type="button" class="chat-next" id="chat-next">次の話題 ▶</button>
       </div>
     </section>
   </main>
@@ -180,6 +183,7 @@
   <script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
   <script src="js/config.js"></script>
   <script src="js/skydata.js"></script>
+  <script src="js/chats.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

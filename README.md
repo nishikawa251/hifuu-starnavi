@@ -66,6 +66,21 @@ GitHub Pages で公開しています（main ブランチのルートをその�
 - 降水があれば指数を大きく下げる。湿度97%以上（霧・もや）でも少し下げる
 - 夜の指数は、薄明が終わってから始まるまでの時間の平均
 
+## 台詞のバージョン（見比べ用）
+
+| URL | 台詞 |
+|---|---|
+| `https://nishikawa251.github.io/hifuu-starnavi/` | 原作寄り（今の版）。「部室の雑談」あり |
+| `https://nishikawa251.github.io/hifuu-starnavi/?tone=classic` | 旧版（原作寄りに書き直す前）。「部室の雑談」なし |
+
+ページ上部の「台詞　原作寄り／旧版」ボタンでも切り替えられ、URL も切り替わります。
+旧版の台詞は `js/app.js` の `renkoScriptClassic` / `maryScriptClassic` にあります。書き直す前の状態は git タグ `tone-classic` でも残しています。
+
+## 部室の雑談
+
+`js/chats.js` に1話ずつ入っていて、1日に1話だけ表示されます（日本時間の朝6時に次の話へ）。
+話を足すときは、`window.CLUB_CHATS` に `{ title, lines: [[話す人, 表情, 台詞], ...] }` を追加するだけです。
+
 ## ファイル構成
 
 ```
@@ -73,6 +88,7 @@ index.html       ページ本体
 css/style.css    デザイン
 js/config.js     立ち絵のファイル名・観察地（ここを書き換えればカスタマイズできる）
 js/skydata.js    恒星・星座線・流星群のデータ
+js/chats.js      部室の雑談（1日1話）
 js/app.js        データ取得、指数計算、天体計算、星図、セリフ
 img/             立ち絵を置く場所
 ```

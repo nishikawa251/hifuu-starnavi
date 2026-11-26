@@ -64,6 +64,13 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .clock-label { padding: 1px 9px; background: var(--renko-soft); border-radius: 999px; color: #ffc2c8; font-size: 0.72rem; }
 .clock-time { font-family: var(--font-head); font-size: 1.15rem; color: var(--text-dim); font-variant-numeric: tabular-nums; letter-spacing: 0.06em; }
 .clock-sub { font-variant-numeric: tabular-nums; }
+/* 台詞のバージョン切り替え（見比べ用） */
+.tone-switch { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 0.72rem; color: var(--text-faint); }
+.tone-switch button {
+  font: inherit; font-size: 0.72rem; color: var(--text-dim); background: var(--card); border: 1px solid var(--line);
+  border-radius: 999px; padding: 2px 10px; cursor: pointer;
+}
+.tone-switch button[aria-pressed="true"] { color: var(--bg-0); background: var(--text-dim); border-color: var(--text-dim); font-weight: 700; }
 
 /* ---------- night tabs ---------- */
 .night-tabs { position: sticky; top: 0; z-index: 10; padding-top: 10px; padding-bottom: 10px;
@@ -287,13 +294,8 @@ main { display: grid; gap: 32px; padding: 8px 16px 48px; }
 .chat-line.renko .chat-name { color: #d23c4d; }
 .chat-line.mary .chat-name { color: #7b52d9; }
 .chat-foot { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 16px; }
-.chat-count { font-size: 0.78rem; color: var(--text-faint); font-variant-numeric: tabular-nums; }
-.chat-next {
-  font: inherit; font-size: 0.92rem; font-weight: 700; color: #1a1026; cursor: pointer;
-  background: linear-gradient(90deg, var(--renko), var(--mary)); border: 0; border-radius: 999px; padding: 8px 20px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-}
-.chat-next:hover { filter: brightness(1.08); }
+.chat-count { font-size: 0.78rem; color: var(--text-faint); }
+.chat-log { cursor: pointer; }
 
 /* ---------- オープニング ---------- */
 html.splash-on { overflow: hidden; }
